@@ -187,7 +187,7 @@
             "label": "Selected active incident",
             "type": 1,
             "isRequired": false,
-            "value": "0",
+            "value": "",
             "isGlobal": true,
             "isHiddenWhenLocked": true
           },
@@ -198,7 +198,7 @@
             "label": "Selected cohort incident",
             "type": 1,
             "isRequired": false,
-            "value": "0",
+            "value": "",
             "isGlobal": true,
             "isHiddenWhenLocked": true
           },
@@ -209,7 +209,7 @@
             "label": "Selected related incident",
             "type": 1,
             "isRequired": false,
-            "value": "0",
+            "value": "",
             "isGlobal": true,
             "isHiddenWhenLocked": true
           },
@@ -3131,7 +3131,7 @@
                     "links": [
                       {
                         "id": "8d698585-70c0-578e-b493-d42c02fa39db",
-                        "cellValue": "https://security.microsoft.com/incidents/{CohortIncident}/overview",
+                        "cellValue": "{CohortIncident}",
                         "linkTarget": "Url",
                         "linkLabel": "Open selected incident in Defender",
                         "style": "primary",
@@ -3143,14 +3143,14 @@
                   "conditionalVisibility": {
                     "parameterName": "CohortIncident",
                     "comparison": "isNotEqualTo",
-                    "value": "0"
+                    "value": ""
                   }
                 },
                 {
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Incidents involving the selected elevated-risk user. Selecting a row opens\n// the incident in the Defender portal in a new tab.\n//\n// {CohortUser} arrives as the pseudonymised or named subject from the cohort\n// grid, so both spellings have to resolve. The pseudonym is a SHA-256 prefix,\n// which is not reversible -- so the match is done by recomputing the pseudonym\n// for each candidate principal rather than by trying to decode it.\nlet Sel = \"{CohortUser}\";\nlet Ident = materialize(\n    IdentityInfo\n    | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName, Department\n    | summarize arg_max(TimeGenerated, *) by AccountObjectId\n    | extend Principal = tolower(AccountUPN)\n    | extend Pseudo = strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))));\nlet Target =\n    Ident\n    | where Pseudo =~ Sel or Principal =~ Sel or AccountDisplayName =~ Sel\n    | project Principal\n    | take 1;\nlet Who = toscalar(Target);\nlet AlertsForUser =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | where Entities has \"account\"\n    | extend E = todynamic(Entities)\n    | mv-expand Ent = E\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity, Tactics, ProductName;\nSecurityIncident\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertsForUser on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 5),\n            Tactics = make_set(Tactics, 6),\n            arg_max(TimeGenerated, Severity, Status, Classification, Title, CreatedTime,\n                    Owner, IncidentUrl)\n    by IncidentNumber\n| extend OwnerName = tostring(todynamic(Owner).assignedTo)\n| extend AgeHours = round(datetime_diff('minute', now(), CreatedTime) / 60.0, 1)\n| extend Disposition = case(Status != \"Closed\",                 \"Open\",\n                            Classification == \"TruePositive\",   \"True positive\",\n                            Classification == \"FalsePositive\",  \"False positive\",\n                            Classification == \"BenignPositive\", \"Benign\",\n                                                                \"Closed — undetermined\")\n// Defender portal incident URL. The Azure-portal IncidentUrl on the record\n// points at Sentinel; this is the unified Defender experience the SOC uses.\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\")\n| project IncidentNumber, Title, Severity, Disposition, Alerts,\n          Detections = strcat_array(Rules, \"; \"),\n          Tactics = strcat_array(Tactics, \", \"),\n          Owner = iif(isempty(OwnerName), \"UNASSIGNED\", OwnerName),\n          AgeHours, CreatedTime, DefenderUrl\n| order by CreatedTime desc\n| take 100",
+                    "query": "// Incidents involving the selected elevated-risk user. Selecting a row opens\n// the incident in the Defender portal in a new tab.\n//\n// {CohortUser} arrives as the pseudonymised or named subject from the cohort\n// grid, so both spellings have to resolve. The pseudonym is a SHA-256 prefix,\n// which is not reversible -- so the match is done by recomputing the pseudonym\n// for each candidate principal rather than by trying to decode it.\nlet Sel = \"{CohortUser}\";\nlet Ident = materialize(\n    IdentityInfo\n    | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName, Department\n    | summarize arg_max(TimeGenerated, *) by AccountObjectId\n    | extend Principal = tolower(AccountUPN)\n    | extend Pseudo = strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))));\nlet Target =\n    Ident\n    | where Pseudo =~ Sel or Principal =~ Sel or AccountDisplayName =~ Sel\n    | project Principal\n    | take 1;\nlet Who = toscalar(Target);\nlet AlertsForUser =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | where Entities has \"account\"\n    | extend E = todynamic(Entities)\n    | mv-expand Ent = E\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity, Tactics, ProductName;\nSecurityIncident\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertsForUser on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 5),\n            Tactics = make_set(Tactics, 6),\n            arg_max(TimeGenerated, Severity, Status, Classification, Title, CreatedTime,\n                    Owner, IncidentUrl, ProviderIncidentId, ProviderName)\n    by IncidentNumber\n| extend OwnerName = tostring(todynamic(Owner).assignedTo)\n| extend AgeHours = round(datetime_diff('minute', now(), CreatedTime) / 60.0, 1)\n| extend Disposition = case(Status != \"Closed\",                 \"Open\",\n                            Classification == \"TruePositive\",   \"True positive\",\n                            Classification == \"FalsePositive\",  \"False positive\",\n                            Classification == \"BenignPositive\", \"Benign\",\n                                                                \"Closed — undetermined\")\n// LINK MAPPING -- IncidentNumber is Sentinel's *sequential* number and is NOT\n// the Defender portal id. Per the SecurityIncident reference:\n//   IncidentNumber      \"The sequential number of the incident\"\n//   ProviderIncidentId  \"The incident ID assigned by the incident provider\"\n//   IncidentUrl         \"The URI to open the incident in Azure Sentinel portal\"\n// A Defender deep link must therefore use ProviderIncidentId. Where the\n// incident did not originate in Defender, fall back to the Microsoft-supplied\n// IncidentUrl, which is always correct for that incident.\n| extend IncidentLink = case(\n      isnotempty(ProviderIncidentId) and ProviderName has \"Defender\",\n          strcat(\"https://security.microsoft.com/incidents/\", tostring(ProviderIncidentId), \"/overview\"),\n      isnotempty(IncidentUrl),\n          IncidentUrl,\n      strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\"))\n| project IncidentNumber, Title, Severity, Disposition, Alerts,\n          Detections = strcat_array(Rules, \"; \"),\n          Tactics = strcat_array(Tactics, \", \"),\n          Owner = iif(isempty(OwnerName), \"UNASSIGNED\", OwnerName),\n          AgeHours, CreatedTime, IncidentLink\n| order by CreatedTime desc\n| take 100",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -3159,13 +3159,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "No incidents reference this identity in the selected window.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "CohortIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
@@ -3311,7 +3311,7 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "datatable(IncidentNumber:int, Title:string, Severity:string, Disposition:string, Alerts:int, Detections:string, Tactics:string, Owner:string, AgeHours:real, CreatedTime:datetime, DefenderUrl:string)\n[\n 48221,\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Open\",7,\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\"CredentialAccess, Collection, Exfiltration\",\"a.chen@contoso.com\",45.2,datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48150,\"Large HTTP upload to file-sharing host\",\"Medium\",\"Open\",4,\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\"Collection, Exfiltration\",\"s.patel@contoso.com\",19.9,datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 47611,\"Credential retrieval above baseline\",\"High\",\"True positive\",2,\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\"CredentialAccess\",\"m.okafor@contoso.com\",316.4,datetime(2026-07-18T11:02:00Z),\"https://security.microsoft.com/incidents/47611/overview\",\n 47820,\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\"InitialAccess\",\"UNASSIGNED\",184.2,datetime(2026-07-24T23:10:00Z),\"https://security.microsoft.com/incidents/47820/overview\",\n 47402,\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\"InitialAccess\",\"UNASSIGNED\",512.7,datetime(2026-07-11T04:35:00Z),\"https://security.microsoft.com/incidents/47402/overview\",\n]\n| order by CreatedTime desc",
+                    "query": "datatable(IncidentNumber:int, Title:string, Severity:string, Disposition:string, Alerts:int, Detections:string, Tactics:string, Owner:string, AgeHours:real, CreatedTime:datetime, IncidentLink:string)\n[\n 48221,\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Open\",7,\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\"CredentialAccess, Collection, Exfiltration\",\"a.chen@contoso.com\",45.2,datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48150,\"Large HTTP upload to file-sharing host\",\"Medium\",\"Open\",4,\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\"Collection, Exfiltration\",\"s.patel@contoso.com\",19.9,datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 47611,\"Credential retrieval above baseline\",\"High\",\"True positive\",2,\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\"CredentialAccess\",\"m.okafor@contoso.com\",316.4,datetime(2026-07-18T11:02:00Z),\"https://security.microsoft.com/incidents/47611/overview\",\n 47820,\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\"InitialAccess\",\"UNASSIGNED\",184.2,datetime(2026-07-24T23:10:00Z),\"https://security.microsoft.com/incidents/47820/overview\",\n 47402,\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\"InitialAccess\",\"UNASSIGNED\",512.7,datetime(2026-07-11T04:35:00Z),\"https://security.microsoft.com/incidents/47402/overview\",\n]\n| order by CreatedTime desc",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -3320,13 +3320,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "No incidents reference this identity in the selected window.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "CohortIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
@@ -3866,7 +3866,7 @@
                     "links": [
                       {
                         "id": "f4b5449d-3f46-5655-887b-2766e1d1cf68",
-                        "cellValue": "https://security.microsoft.com/incidents/{ActiveIncident}/overview",
+                        "cellValue": "{ActiveIncident}",
                         "linkTarget": "Url",
                         "linkLabel": "Open selected incident in Defender",
                         "style": "primary",
@@ -3878,14 +3878,14 @@
                   "conditionalVisibility": {
                     "parameterName": "ActiveIncident",
                     "comparison": "isNotEqualTo",
-                    "value": "0"
+                    "value": ""
                   }
                 },
                 {
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Active incidents for the user selected in the active-incident table.\n// Mirrors 29 but keyed on {ActiveUser} and scoped to non-closed incidents.\nlet Sel = \"{ActiveUser}\";\nlet Ident = materialize(\n    IdentityInfo\n    | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName\n    | summarize arg_max(TimeGenerated, *) by AccountObjectId\n    | extend Principal = tolower(AccountUPN)\n    | extend Pseudo = strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))));\nlet Who = toscalar(\n    Ident\n    | where Pseudo =~ Sel or Principal =~ Sel or AccountDisplayName =~ Sel\n    | project Principal\n    | take 1);\nlet AlertsForUser =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | where Entities has \"account\"\n    | mv-expand Ent = todynamic(Entities)\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity, Tactics;\nSecurityIncident\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertsForUser on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 5),\n            TacticSet = make_set(Tactics, 6),\n            HighAlerts = dcountif(AlertName, AlertSeverity == \"High\"),\n            arg_max(TimeGenerated, Severity, Status, Title, CreatedTime, Owner)\n    by IncidentNumber\n| extend OwnerName = tostring(todynamic(Owner).assignedTo)\n| extend AgeHours = round(datetime_diff('minute', now(), CreatedTime) / 60.0, 1)\n| extend SlaHours = case(Severity == \"High\", 4.0, Severity == \"Medium\", 24.0, 72.0)\n| extend SlaState = case(AgeHours > SlaHours,        \"BREACHED\",\n                         AgeHours > SlaHours * 0.75, \"At risk\",\n                                                     \"Within SLA\")\n| extend AlertDetail = strcat(tostring(Alerts), \" alert(s)\",\n                              iif(HighAlerts > 0, strcat(\" · \", tostring(HighAlerts), \" high\"), \"\"))\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\")\n| project IncidentNumber, Title, Severity, Status, SlaState, AgeHours,\n          Alerts, AlertDetail, Detections = strcat_array(Rules, \"; \"),\n          Tactics = strcat_array(TacticSet, \", \"),\n          Owner = iif(isempty(OwnerName), \"UNASSIGNED\", OwnerName),\n          CreatedTime, DefenderUrl\n| order by AgeHours desc\n| take 100",
+                    "query": "// Active incidents for the user selected in the active-incident table.\n// Mirrors 29 but keyed on {ActiveUser} and scoped to non-closed incidents.\nlet Sel = \"{ActiveUser}\";\nlet Ident = materialize(\n    IdentityInfo\n    | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName\n    | summarize arg_max(TimeGenerated, *) by AccountObjectId\n    | extend Principal = tolower(AccountUPN)\n    | extend Pseudo = strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))));\nlet Who = toscalar(\n    Ident\n    | where Pseudo =~ Sel or Principal =~ Sel or AccountDisplayName =~ Sel\n    | project Principal\n    | take 1);\nlet AlertsForUser =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | where Entities has \"account\"\n    | mv-expand Ent = todynamic(Entities)\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity, Tactics;\nSecurityIncident\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertsForUser on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 5),\n            TacticSet = make_set(Tactics, 6),\n            HighAlerts = dcountif(AlertName, AlertSeverity == \"High\"),\n            arg_max(TimeGenerated, Severity, Status, Title, CreatedTime, Owner,\n                    IncidentUrl, ProviderIncidentId, ProviderName)\n    by IncidentNumber\n| extend OwnerName = tostring(todynamic(Owner).assignedTo)\n| extend AgeHours = round(datetime_diff('minute', now(), CreatedTime) / 60.0, 1)\n| extend SlaHours = case(Severity == \"High\", 4.0, Severity == \"Medium\", 24.0, 72.0)\n| extend SlaState = case(AgeHours > SlaHours,        \"BREACHED\",\n                         AgeHours > SlaHours * 0.75, \"At risk\",\n                                                     \"Within SLA\")\n| extend AlertDetail = strcat(tostring(Alerts), \" alert(s)\",\n                              iif(HighAlerts > 0, strcat(\" · \", tostring(HighAlerts), \" high\"), \"\"))\n// LINK MAPPING -- IncidentNumber is Sentinel's *sequential* number and is NOT\n// the Defender portal id. Per the SecurityIncident reference:\n//   IncidentNumber      \"The sequential number of the incident\"\n//   ProviderIncidentId  \"The incident ID assigned by the incident provider\"\n//   IncidentUrl         \"The URI to open the incident in Azure Sentinel portal\"\n// A Defender deep link must therefore use ProviderIncidentId. Where the\n// incident did not originate in Defender, fall back to the Microsoft-supplied\n// IncidentUrl, which is always correct for that incident.\n| extend IncidentLink = case(\n      isnotempty(ProviderIncidentId) and ProviderName has \"Defender\",\n          strcat(\"https://security.microsoft.com/incidents/\", tostring(ProviderIncidentId), \"/overview\"),\n      isnotempty(IncidentUrl),\n          IncidentUrl,\n      strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\"))\n| project IncidentNumber, Title, Severity, Status, SlaState, AgeHours,\n          Alerts, AlertDetail, Detections = strcat_array(Rules, \"; \"),\n          Tactics = strcat_array(TacticSet, \", \"),\n          Owner = iif(isempty(OwnerName), \"UNASSIGNED\", OwnerName),\n          CreatedTime, IncidentLink\n| order by AgeHours desc\n| take 100",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -3894,13 +3894,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "No active incidents for this identity in the selected window.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "ActiveIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
@@ -4052,7 +4052,7 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "datatable(IncidentNumber:int, Title:string, Severity:string, Status:string, SlaState:string, AgeHours:real, Alerts:int, AlertDetail:string, Detections:string, Tactics:string, Owner:string, CreatedTime:datetime, DefenderUrl:string)\n[\n 48221,\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Active\",\"BREACHED\",45.2,7,\"7 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\"CredentialAccess, Collection, Exfiltration\",\"a.chen@contoso.com\",datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48310,\"Bulk credential retrieval from privileged vault\",\"High\",\"New\",\"At risk\",3.1,3,\"3 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\"CredentialAccess\",\"m.okafor@contoso.com\",datetime(2026-07-31T09:30:00Z),\"https://security.microsoft.com/incidents/48310/overview\",\n 48150,\"Large HTTP upload to file-sharing host\",\"Medium\",\"Active\",\"At risk\",19.9,4,\"4 alert(s) · 1 high\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\"Collection, Exfiltration\",\"s.patel@contoso.com\",datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 48298,\"Outbound mail to newly observed external domain\",\"Medium\",\"New\",\"Within SLA\",9.8,2,\"2 alert(s)\",\"WF_Proofpoint - Unusual Outbound Email Domains by Peer Group\",\"Exfiltration\",\"UNASSIGNED\",datetime(2026-07-31T02:55:00Z),\"https://security.microsoft.com/incidents/48298/overview\",\n 47905,\"Suspicious VPN sign-in outside working hours\",\"High\",\"New\",\"BREACHED\",30.4,1,\"1 alert(s) · 1 high\",\"WF_GlobalProtect - Abnormal Origin Location of VPN Connection\",\"InitialAccess\",\"UNASSIGNED\",datetime(2026-07-30T02:41:00Z),\"https://security.microsoft.com/incidents/47905/overview\",\n]\n| order by AgeHours desc",
+                    "query": "datatable(IncidentNumber:int, Title:string, Severity:string, Status:string, SlaState:string, AgeHours:real, Alerts:int, AlertDetail:string, Detections:string, Tactics:string, Owner:string, CreatedTime:datetime, IncidentLink:string)\n[\n 48221,\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Active\",\"BREACHED\",45.2,7,\"7 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\"CredentialAccess, Collection, Exfiltration\",\"a.chen@contoso.com\",datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48310,\"Bulk credential retrieval from privileged vault\",\"High\",\"New\",\"At risk\",3.1,3,\"3 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\"CredentialAccess\",\"m.okafor@contoso.com\",datetime(2026-07-31T09:30:00Z),\"https://security.microsoft.com/incidents/48310/overview\",\n 48150,\"Large HTTP upload to file-sharing host\",\"Medium\",\"Active\",\"At risk\",19.9,4,\"4 alert(s) · 1 high\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\"Collection, Exfiltration\",\"s.patel@contoso.com\",datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 48298,\"Outbound mail to newly observed external domain\",\"Medium\",\"New\",\"Within SLA\",9.8,2,\"2 alert(s)\",\"WF_Proofpoint - Unusual Outbound Email Domains by Peer Group\",\"Exfiltration\",\"UNASSIGNED\",datetime(2026-07-31T02:55:00Z),\"https://security.microsoft.com/incidents/48298/overview\",\n 47905,\"Suspicious VPN sign-in outside working hours\",\"High\",\"New\",\"BREACHED\",30.4,1,\"1 alert(s) · 1 high\",\"WF_GlobalProtect - Abnormal Origin Location of VPN Connection\",\"InitialAccess\",\"UNASSIGNED\",datetime(2026-07-30T02:41:00Z),\"https://security.microsoft.com/incidents/47905/overview\",\n]\n| order by AgeHours desc",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -4061,13 +4061,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "No active incidents for this identity in the selected window.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "ActiveIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
@@ -5410,7 +5410,7 @@
                     "links": [
                       {
                         "id": "b98a686c-56e2-5179-acf9-4d82fc4d896d",
-                        "cellValue": "https://security.microsoft.com/incidents/{RelIncident}/overview",
+                        "cellValue": "{RelIncident}",
                         "linkTarget": "Url",
                         "linkLabel": "Open selected incident in Defender",
                         "style": "primary",
@@ -5422,14 +5422,14 @@
                   "conditionalVisibility": {
                     "parameterName": "RelIncident",
                     "comparison": "isNotEqualTo",
-                    "value": "0"
+                    "value": ""
                   }
                 },
                 {
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "// Other incidents touching the same entity. Corroboration across incidents is\n// the insider-risk question -- one incident is an event, four in a fortnight is\n// a pattern.\n// {InvEntity} arrives as \"Kind||Value\" from the entities grid; take the value.\nlet Raw = \"{InvEntity}\";\nlet Who = tolower(iif(Raw == \"none\", \"\", iif(Raw has \"||\", tostring(split(Raw, \"||\")[1]), Raw)));\nlet N = toint(\"{InvIncident}\");\nlet Recent = 60d;\nlet AlertAcct =\n    SecurityAlert\n    | where TimeGenerated > ago(Recent)\n    | where Entities has \"account\"\n    | extend E = todynamic(Entities)\n    | mv-expand Ent = E\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity;\nSecurityIncident\n| where TimeGenerated > ago(Recent)\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertAcct on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 6),\n            HighAlerts = dcountif(AlertName, AlertSeverity == \"High\"),\n            MedAlerts  = dcountif(AlertName, AlertSeverity == \"Medium\"),\n            arg_max(TimeGenerated, Severity, Status, Classification, Title, CreatedTime, IncidentUrl)\n    by IncidentNumber\n| extend IsCurrent = iif(IncidentNumber == N, \"◀ current\", \"\")\n| extend Disposition = case(Status != \"Closed\",                          \"Still open\",\n                            Classification == \"TruePositive\",            \"Confirmed true positive\",\n                            Classification == \"FalsePositive\",           \"False positive\",\n                            Classification == \"BenignPositive\",          \"Benign\",\n                                                                          \"Closed — undetermined\")\n// Alert detail and a direct link. The Azure IncidentUrl on the record points at\n// Sentinel; DefenderUrl is the unified experience the SOC actually works in.\n| extend AlertDetail = strcat(tostring(Alerts), \" alert(s)\",\n                              iif(HighAlerts > 0, strcat(\" · \", tostring(HighAlerts), \" high\"), \"\"),\n                              iif(MedAlerts  > 0, strcat(\" · \", tostring(MedAlerts),  \" medium\"), \"\"))\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\")\n| project IncidentNumber, IsCurrent, Title, Severity, Disposition, Alerts, AlertDetail,\n          Detections = strcat_array(Rules, \"; \"), CreatedTime, DefenderUrl\n| order by CreatedTime desc\n| take 50",
+                    "query": "// Other incidents touching the same entity. Corroboration across incidents is\n// the insider-risk question -- one incident is an event, four in a fortnight is\n// a pattern.\n// {InvEntity} arrives as \"Kind||Value\" from the entities grid; take the value.\nlet Raw = \"{InvEntity}\";\nlet Who = tolower(iif(Raw == \"none\", \"\", iif(Raw has \"||\", tostring(split(Raw, \"||\")[1]), Raw)));\nlet N = toint(\"{InvIncident}\");\nlet Recent = 60d;\nlet AlertAcct =\n    SecurityAlert\n    | where TimeGenerated > ago(Recent)\n    | where Entities has \"account\"\n    | extend E = todynamic(Entities)\n    | mv-expand Ent = E\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity;\nSecurityIncident\n| where TimeGenerated > ago(Recent)\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertAcct on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 6),\n            HighAlerts = dcountif(AlertName, AlertSeverity == \"High\"),\n            MedAlerts  = dcountif(AlertName, AlertSeverity == \"Medium\"),\n            arg_max(TimeGenerated, Severity, Status, Classification, Title, CreatedTime,\n                    IncidentUrl, ProviderIncidentId, ProviderName)\n    by IncidentNumber\n| extend IsCurrent = iif(IncidentNumber == N, \"◀ current\", \"\")\n| extend Disposition = case(Status != \"Closed\",                          \"Still open\",\n                            Classification == \"TruePositive\",            \"Confirmed true positive\",\n                            Classification == \"FalsePositive\",           \"False positive\",\n                            Classification == \"BenignPositive\",          \"Benign\",\n                                                                          \"Closed — undetermined\")\n// Alert detail and a direct link. The Azure IncidentUrl on the record points at\n// Sentinel; IncidentLink is the unified experience the SOC actually works in.\n| extend AlertDetail = strcat(tostring(Alerts), \" alert(s)\",\n                              iif(HighAlerts > 0, strcat(\" · \", tostring(HighAlerts), \" high\"), \"\"),\n                              iif(MedAlerts  > 0, strcat(\" · \", tostring(MedAlerts),  \" medium\"), \"\"))\n// LINK MAPPING -- IncidentNumber is Sentinel's *sequential* number and is NOT\n// the Defender portal id. Per the SecurityIncident reference:\n//   IncidentNumber      \"The sequential number of the incident\"\n//   ProviderIncidentId  \"The incident ID assigned by the incident provider\"\n//   IncidentUrl         \"The URI to open the incident in Azure Sentinel portal\"\n// A Defender deep link must therefore use ProviderIncidentId. Where the\n// incident did not originate in Defender, fall back to the Microsoft-supplied\n// IncidentUrl, which is always correct for that incident.\n| extend IncidentLink = case(\n      isnotempty(ProviderIncidentId) and ProviderName has \"Defender\",\n          strcat(\"https://security.microsoft.com/incidents/\", tostring(ProviderIncidentId), \"/overview\"),\n      isnotempty(IncidentUrl),\n          IncidentUrl,\n      strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\"))\n| project IncidentNumber, IsCurrent, Title, Severity, Disposition, Alerts, AlertDetail,\n          Detections = strcat_array(Rules, \"; \"), CreatedTime, IncidentLink\n| order by CreatedTime desc\n| take 50",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -5438,13 +5438,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "Select an entity to find related incidents.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "RelIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
@@ -5573,7 +5573,7 @@
                   "type": 3,
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "datatable(IncidentNumber:int, IsCurrent:string, Title:string, Severity:string, Disposition:string, Alerts:int, AlertDetail:string, Detections:string, CreatedTime:datetime, DefenderUrl:string)\n[\n 48221,\"◀ current\",\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Still open\",4,\"4 alert(s) · 2 high · 2 medium\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48150,\"\",\"Large HTTP upload to file-sharing host\",\"Medium\",\"Still open\",2,\"2 alert(s) · 1 medium\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 47820,\"\",\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"1 alert(s)\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",datetime(2026-07-24T23:10:00Z),\"https://security.microsoft.com/incidents/47820/overview\",\n 47611,\"\",\"Credential retrieval above baseline\",\"High\",\"Confirmed true positive\",2,\"2 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",datetime(2026-07-18T11:02:00Z),\"https://security.microsoft.com/incidents/47611/overview\",\n 47402,\"\",\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"1 alert(s)\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",datetime(2026-07-11T04:35:00Z),\"https://security.microsoft.com/incidents/47402/overview\",\n]\n| order by CreatedTime desc",
+                    "query": "datatable(IncidentNumber:int, IsCurrent:string, Title:string, Severity:string, Disposition:string, Alerts:int, AlertDetail:string, Detections:string, CreatedTime:datetime, IncidentLink:string)\n[\n 48221,\"◀ current\",\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Still open\",4,\"4 alert(s) · 2 high · 2 medium\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48150,\"\",\"Large HTTP upload to file-sharing host\",\"Medium\",\"Still open\",2,\"2 alert(s) · 1 medium\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 47820,\"\",\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"1 alert(s)\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",datetime(2026-07-24T23:10:00Z),\"https://security.microsoft.com/incidents/47820/overview\",\n 47611,\"\",\"Credential retrieval above baseline\",\"High\",\"Confirmed true positive\",2,\"2 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",datetime(2026-07-18T11:02:00Z),\"https://security.microsoft.com/incidents/47611/overview\",\n 47402,\"\",\"VPN connection outside working hours\",\"Low\",\"False positive\",1,\"1 alert(s)\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",datetime(2026-07-11T04:35:00Z),\"https://security.microsoft.com/incidents/47402/overview\",\n]\n| order by CreatedTime desc",
                     "size": 2,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -5582,13 +5582,13 @@
                     ],
                     "visualization": "table",
                     "noDataMessage": "Select an entity to find related incidents.",
-                    "exportFieldName": "IncidentNumber",
+                    "exportFieldName": "IncidentLink",
                     "exportParameterName": "RelIncident",
-                    "exportDefaultValue": "0",
+                    "exportDefaultValue": "",
                     "gridSettings": {
                       "formatters": [
                         {
-                          "columnMatch": "DefenderUrl",
+                          "columnMatch": "IncidentLink",
                           "formatter": 5
                         },
                         {
