@@ -170,6 +170,28 @@
             "isHiddenWhenLocked": true
           },
           {
+            "id": "ae04a140-ba25-552d-b872-a683bc5d146c",
+            "version": "KqlParameterItem/1.0",
+            "name": "ActiveUser",
+            "label": "Selected active-incident user",
+            "type": 1,
+            "isRequired": false,
+            "value": "",
+            "isGlobal": true,
+            "isHiddenWhenLocked": true
+          },
+          {
+            "id": "8fb2cdab-63ce-5cda-99b5-b0ad86ebe0c9",
+            "version": "KqlParameterItem/1.0",
+            "name": "ActiveIncident",
+            "label": "Selected active incident",
+            "type": 1,
+            "isRequired": false,
+            "value": "0",
+            "isGlobal": true,
+            "isHiddenWhenLocked": true
+          },
+          {
             "id": "96092e24-e78d-593c-a5fc-3c8c339227c8",
             "version": "KqlParameterItem/1.0",
             "name": "CohortIncident",
@@ -2658,6 +2680,13 @@
             "name": "cohort-head"
           },
           {
+            "type": 1,
+            "content": {
+              "json": "<div style=\"background:#111d30;padding:12px 16px;border-radius:7px;border:1px solid #2f4a70;border-left:4px solid #ffb020;\"><span style=\"color:#ffb020;font-size:13px;font-weight:700;\">&#9432;&nbsp; Risk Index is calculated by this workbook — it is not a Microsoft score</span><br><span style=\"color:#a8c0de;font-size:12px;\">Microsoft does not publish the weights behind its own scores, so this workbook does not attempt to reproduce them. The 0–100 <b>Risk Index</b> is computed here from five components with fixed caps: <b>UEBA behaviour priority</b> (25 — cumulative <code>BehaviorAnalytics.InvestigationPriority</code> ÷ 4) · <b>UEBA anomalies</b> (20 — summed <code>Anomalies.Score</code> × 4) · <b>Kill-chain breadth</b> (20 — distinct MITRE tactics, (n−1) × 7) · <b>Analytics-rule alerts</b> (25 — severity-weighted 10/5/2/1) · <b>Blast radius / privilege</b> (10). Bands: Critical ≥ 70 · High ≥ 45 · Elevated ≥ 25. Every weight sits in one block at the top of the query and is yours to retune. Microsoft's own scores — Investigation Priority, incident priority, anomaly score — are <i>inputs</i> to this, never replaced by it. Full derivation, and what Microsoft does and does not publish, is on the <b>How Scoring Works</b> tab.</span></div>"
+            },
+            "name": "cohort-index-disclosure"
+          },
+          {
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
@@ -3141,10 +3170,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
-                            "linkIsContextBlade": false,
                             "customColumnWidthSetting": "90px"
                           }
                         },
@@ -3304,10 +3331,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
-                            "linkIsContextBlade": false,
                             "customColumnWidthSetting": "90px"
                           }
                         },
@@ -3448,6 +3473,753 @@
             "name": "cohort-inc-shown",
             "conditionalVisibility": {
               "parameterName": "CohortUser",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            }
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "<div style=\"background:#172f5e;background:linear-gradient(90deg,#172f5e 0%,#0a1834 100%);padding:13px 20px;border-radius:9px;border-left:8px solid #ff3ec8;\"><span style=\"color:#ffffff;font-size:17.5px;font-weight:800;letter-spacing:0.2px;\">Users in active incidents</span><br><span style=\"color:#b8d0ec;font-size:12.5px;\">Everyone named in a non-closed incident, ranked by how many. This is a queue view, not a score view — a user can appear here with a low Risk Index purely because something is open on them.</span></div>"
+            },
+            "name": "active-head"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "<div style=\"background:#111d30;padding:12px 16px;border-radius:7px;border:1px solid #2f4a70;border-left:4px solid #00d4ff;\"><span style=\"color:#00d4ff;font-size:13px;font-weight:700;\">&#9432;&nbsp; Concentration is the signal</span><br><span style=\"color:#a8c0de;font-size:12px;\">Several open incidents on one identity is a different problem from one incident on several identities — the first is probably one case that was never correlated. Select a row to see that user's active incidents.</span></div>"
+            },
+            "name": "active-hint"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// All users involved in ACTIVE (non-closed) incidents.\n// Different question from the risk index: this is \"who is in the queue right\n// now\", not \"who scores highest\". A user can sit here with a low risk index\n// simply because an incident is open on them, and that is worth seeing.\nlet Active = materialize(\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | where Status != \"Closed\");\nlet ActiveAlerts =\n    Active\n    | mv-expand AlertId = AlertIds to typeof(string)\n    | project IncidentNumber, AlertId, Severity, Status, CreatedTime, Title;\nlet UserRows =\n    ActiveAlerts\n    | join kind=inner (\n        SecurityAlert\n        | where TimeGenerated > ago(90d)\n        | where Entities has \"account\"\n        | project SystemAlertId, AlertName, AlertSeverity, Tactics, Entities\n      ) on $left.AlertId == $right.SystemAlertId\n    | mv-expand Ent = todynamic(Entities)\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | where isnotempty(AcctName)\n    | extend Principal = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName));\nUserRows\n| summarize Incidents   = dcount(IncidentNumber),\n            HighInc     = dcountif(IncidentNumber, Severity == \"High\"),\n            MedInc      = dcountif(IncidentNumber, Severity == \"Medium\"),\n            NewInc      = dcountif(IncidentNumber, Status == \"New\"),\n            Alerts      = dcount(AlertName),\n            Detections  = make_set(AlertName, 5),\n            TacticSet   = make_set(Tactics, 8),\n            Oldest      = min(CreatedTime),\n            Newest      = max(CreatedTime)\n    by Principal\n| lookup kind=leftouter (\n      IdentityInfo\n      | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName,\n                Department, JobTitle, BlastRadius, AssignedRoles\n      | summarize arg_max(TimeGenerated, *) by AccountObjectId\n      | project Principal = tolower(AccountUPN), DisplayName = AccountDisplayName,\n                Department, JobTitle, BlastRadius,\n                RoleCount = array_length(todynamic(AssignedRoles))\n  ) on Principal\n| extend Department = iif(isempty(Department), \"Unmapped\", Department),\n         JobTitle   = iif(isempty(JobTitle), \"-\", JobTitle),\n         RoleCount  = coalesce(RoleCount, 0)\n| where \"{DeptFilter}\" == \"*\" or Department =~ \"{DeptFilter}\"\n| extend Subject = iif(\"{Identify}\" == \"Named\",\n                       iif(isempty(DisplayName), Principal, DisplayName),\n                       strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))))\n| extend Handle = iif(\"{Identify}\" == \"Named\", Principal, \"(pseudonymised)\")\n| extend OldestHours = round(datetime_diff('minute', now(), Oldest) / 60.0, 1)\n| extend Privilege = case(RoleCount >= 3, \"High\", RoleCount >= 1, \"Medium\", \"Standard\")\n// Concentration is the signal here: several open incidents on one identity is\n// a different problem from one incident on several identities.\n| extend Concentration = case(Incidents >= 4, \"4+ open — investigate as one case\",\n                              Incidents >= 2, \"Multiple open\",\n                                              \"Single open incident\")\n| project Subject, Handle, Department, JobTitle, Incidents, HighInc, MedInc, NewInc,\n          Alerts, Concentration, Privilege, OldestHours,\n          Tactics = strcat_array(TacticSet, \", \"),\n          TopDetections = strcat_array(Detections, \"; \")\n| order by Incidents desc, HighInc desc\n| take {TopN}",
+              "size": 2,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "visualization": "table",
+              "noDataMessage": "No active incidents reference an account in the selected window.",
+              "exportFieldName": "Subject",
+              "exportParameterName": "ActiveUser",
+              "exportDefaultValue": "",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Subject",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Handle",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Department",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "JobTitle",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Incidents",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "redBright",
+                      "min": 0,
+                      "max": 6
+                    }
+                  },
+                  {
+                    "columnMatch": "HighInc",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "redBright",
+                      "min": 0,
+                      "max": 4
+                    }
+                  },
+                  {
+                    "columnMatch": "MedInc",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "NewInc",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Alerts",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "blue",
+                      "min": 0
+                    }
+                  },
+                  {
+                    "columnMatch": "Concentration",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "4+ open",
+                          "representation": "Sev0",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Multiple open",
+                          "representation": "Sev2",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Privilege",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "High",
+                          "representation": "Sev1",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Medium",
+                          "representation": "Sev3",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "OldestHours",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Tactics",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "TopDetections",
+                    "formatter": 1
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "HighInc",
+                    "label": "High"
+                  },
+                  {
+                    "columnId": "MedInc",
+                    "label": "Med"
+                  },
+                  {
+                    "columnId": "NewInc",
+                    "label": "New"
+                  },
+                  {
+                    "columnId": "OldestHours",
+                    "label": "Oldest (h)"
+                  },
+                  {
+                    "columnId": "TopDetections",
+                    "label": "Detections"
+                  }
+                ]
+              }
+            },
+            "name": "active-users-live",
+            "conditionalVisibility": {
+              "parameterName": "DataMode",
+              "comparison": "isEqualTo",
+              "value": "Live"
+            }
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "datatable(Subject:string, Handle:string, Department:string, JobTitle:string, Incidents:int, HighInc:int, MedInc:int, NewInc:int, Alerts:int, Concentration:string, Privilege:string, OldestHours:real, Tactics:string, TopDetections:string)\n[\n \"ANON-7F3A91\",\"(pseudonymised)\",\"Wealth & Investment Management\",\"Portfolio Manager\",5,3,2,2,11,\"4+ open — investigate as one case\",\"High\",412.5,\"CredentialAccess, Collection, Exfiltration\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\n \"ANON-3C1D07\",\"(pseudonymised)\",\"Corporate & Investment Banking\",\"Managing Director\",4,2,2,1,8,\"4+ open — investigate as one case\",\"High\",388.1,\"InitialAccess, CredentialAccess\",\"WF_GlobalProtect - Abnormal Origin Location of VPN Connection\",\n \"ANON-9B4E22\",\"(pseudonymised)\",\"Technology\",\"Senior Cloud Engineer\",3,2,1,3,6,\"Multiple open\",\"High\",96.2,\"CredentialAccess\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\n \"ANON-8D2B45\",\"(pseudonymised)\",\"Human Resources\",\"HRIS Analyst\",2,1,1,1,4,\"Multiple open\",\"High\",120.4,\"Collection, Exfiltration\",\"WF_Proofpoint - Unusual Outbound Email Domains by Peer Group\",\n \"ANON-2E6C90\",\"(pseudonymised)\",\"Consumer Banking\",\"Branch Operations Lead\",2,0,2,2,3,\"Multiple open\",\"Standard\",64.8,\"Exfiltration\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\n \"ANON-5A8F13\",\"(pseudonymised)\",\"Wealth & Investment Management\",\"Financial Advisor\",2,1,1,0,4,\"Multiple open\",\"Standard\",212.3,\"Exfiltration\",\"WF_Proofpoint - Unusual Outbound Email Domains by Peer Group\",\n \"ANON-6F9A38\",\"(pseudonymised)\",\"Operations\",\"Payments Operations Specialist\",1,0,1,1,2,\"Single open incident\",\"Standard\",30.4,\"InitialAccess\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\n \"ANON-4C3D19\",\"(pseudonymised)\",\"Technology\",\"Database Administrator\",1,1,0,0,2,\"Single open incident\",\"High\",18.9,\"Collection\",\"WF_Proxy - Abnormal HTTP Upload Volume by Peer Group\",\n \"ANON-1B7E64\",\"(pseudonymised)\",\"Commercial Banking\",\"Relationship Manager\",1,0,1,1,1,\"Single open incident\",\"Standard\",44.1,\"Collection\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\n \"ANON-7A5B82\",\"(pseudonymised)\",\"Risk\",\"Quantitative Analyst\",1,0,0,1,1,\"Single open incident\",\"Standard\",15.9,\"InitialAccess\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\n \"ANON-3E8F27\",\"(pseudonymised)\",\"Corporate & Investment Banking\",\"Trading Assistant\",1,0,1,0,1,\"Single open incident\",\"Standard\",72.6,\"Exfiltration\",\"WF_Proofpoint - Unusual Volume of Outbound HTTP by Peer Group\",\n \"ANON-9C6A51\",\"(pseudonymised)\",\"Consumer Banking\",\"Fraud Investigator\",1,0,0,1,1,\"Single open incident\",\"Standard\",9.2,\"InitialAccess\",\"WF_GlobalProtect - VPN Connections Outside Typical Working Hours\",\n]\n| where \"{DeptFilter}\" == \"*\" or Department =~ \"{DeptFilter}\"\n| order by Incidents desc, HighInc desc\n| take {TopN}",
+              "size": 2,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "visualization": "table",
+              "noDataMessage": "No active incidents reference an account in the selected window.",
+              "exportFieldName": "Subject",
+              "exportParameterName": "ActiveUser",
+              "exportDefaultValue": "",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Subject",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Handle",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Department",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "JobTitle",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Incidents",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "redBright",
+                      "min": 0,
+                      "max": 6
+                    }
+                  },
+                  {
+                    "columnMatch": "HighInc",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "redBright",
+                      "min": 0,
+                      "max": 4
+                    }
+                  },
+                  {
+                    "columnMatch": "MedInc",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "NewInc",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Alerts",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "blue",
+                      "min": 0
+                    }
+                  },
+                  {
+                    "columnMatch": "Concentration",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "4+ open",
+                          "representation": "Sev0",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Multiple open",
+                          "representation": "Sev2",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Privilege",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "High",
+                          "representation": "Sev1",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Medium",
+                          "representation": "Sev3",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "OldestHours",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "Tactics",
+                    "formatter": 1
+                  },
+                  {
+                    "columnMatch": "TopDetections",
+                    "formatter": 1
+                  }
+                ],
+                "labelSettings": [
+                  {
+                    "columnId": "HighInc",
+                    "label": "High"
+                  },
+                  {
+                    "columnId": "MedInc",
+                    "label": "Med"
+                  },
+                  {
+                    "columnId": "NewInc",
+                    "label": "New"
+                  },
+                  {
+                    "columnId": "OldestHours",
+                    "label": "Oldest (h)"
+                  },
+                  {
+                    "columnId": "TopDetections",
+                    "label": "Detections"
+                  }
+                ]
+              }
+            },
+            "name": "active-users-demo",
+            "conditionalVisibility": {
+              "parameterName": "DataMode",
+              "comparison": "isEqualTo",
+              "value": "Sample"
+            }
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "<div style=\"background:#111d30;padding:12px 16px;border-radius:7px;border:1px solid #2f4a70;border-left:4px solid #5b7fa8;\"><span style=\"color:#5b7fa8;font-size:13px;font-weight:700;\">&#9432;&nbsp; Select a user to see their active incidents</span><br><span style=\"color:#a8c0de;font-size:12px;\">Pick a row above and every non-closed incident naming that identity is listed here, with SLA state and a link into Defender.</span></div>"
+                  },
+                  "name": "active-inc-hint"
+                }
+              ]
+            },
+            "name": "active-inc-none",
+            "conditionalVisibility": {
+              "parameterName": "ActiveUser",
+              "comparison": "isEqualTo",
+              "value": ""
+            }
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "<div style=\"background:#112348;background:linear-gradient(90deg,#112348 0%,#0a1834 100%);padding:10px 16px;border-radius:7px;border-left:5px solid #ff3ec8;\"><span style=\"color:#ff3ec8;font-size:14.5px;font-weight:700;\">Active incidents for {ActiveUser}</span>&nbsp;&nbsp;<span style=\"color:#9fb8d8;font-size:12px;\">Oldest first. Select a row, then use the button to open it in Defender.</span></div>"
+                  },
+                  "name": "active-inc-head"
+                },
+                {
+                  "type": 11,
+                  "content": {
+                    "version": "LinkItem/1.0",
+                    "style": "toolbar",
+                    "links": [
+                      {
+                        "id": "f4b5449d-3f46-5655-887b-2766e1d1cf68",
+                        "cellValue": "https://security.microsoft.com/incidents/{ActiveIncident}/overview",
+                        "linkTarget": "Url",
+                        "linkLabel": "Open selected incident in Defender",
+                        "style": "primary",
+                        "icon": "OpenInNewWindow"
+                      }
+                    ]
+                  },
+                  "name": "active-inc-open",
+                  "conditionalVisibility": {
+                    "parameterName": "ActiveIncident",
+                    "comparison": "isNotEqualTo",
+                    "value": "0"
+                  }
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Active incidents for the user selected in the active-incident table.\n// Mirrors 29 but keyed on {ActiveUser} and scoped to non-closed incidents.\nlet Sel = \"{ActiveUser}\";\nlet Ident = materialize(\n    IdentityInfo\n    | project TimeGenerated, AccountObjectId, AccountUPN, AccountDisplayName\n    | summarize arg_max(TimeGenerated, *) by AccountObjectId\n    | extend Principal = tolower(AccountUPN)\n    | extend Pseudo = strcat(\"ANON-\", toupper(substring(hash_sha256(Principal), 0, 6))));\nlet Who = toscalar(\n    Ident\n    | where Pseudo =~ Sel or Principal =~ Sel or AccountDisplayName =~ Sel\n    | project Principal\n    | take 1);\nlet AlertsForUser =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | where Entities has \"account\"\n    | mv-expand Ent = todynamic(Entities)\n    | where tostring(Ent.Type) =~ \"account\"\n    | extend AcctName = tostring(Ent.Name), Sfx = tostring(Ent.UPNSuffix)\n    | extend P = tolower(iif(isnotempty(Sfx), strcat(AcctName, \"@\", Sfx), AcctName))\n    | where P == Who\n    | project SystemAlertId, AlertName, AlertSeverity, Tactics;\nSecurityIncident\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| mv-expand AlertId = AlertIds to typeof(string)\n| join kind=inner AlertsForUser on $left.AlertId == $right.SystemAlertId\n| summarize Alerts = dcount(AlertName), Rules = make_set(AlertName, 5),\n            TacticSet = make_set(Tactics, 6),\n            HighAlerts = dcountif(AlertName, AlertSeverity == \"High\"),\n            arg_max(TimeGenerated, Severity, Status, Title, CreatedTime, Owner)\n    by IncidentNumber\n| extend OwnerName = tostring(todynamic(Owner).assignedTo)\n| extend AgeHours = round(datetime_diff('minute', now(), CreatedTime) / 60.0, 1)\n| extend SlaHours = case(Severity == \"High\", 4.0, Severity == \"Medium\", 24.0, 72.0)\n| extend SlaState = case(AgeHours > SlaHours,        \"BREACHED\",\n                         AgeHours > SlaHours * 0.75, \"At risk\",\n                                                     \"Within SLA\")\n| extend AlertDetail = strcat(tostring(Alerts), \" alert(s)\",\n                              iif(HighAlerts > 0, strcat(\" · \", tostring(HighAlerts), \" high\"), \"\"))\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"/overview\")\n| project IncidentNumber, Title, Severity, Status, SlaState, AgeHours,\n          Alerts, AlertDetail, Detections = strcat_array(Rules, \"; \"),\n          Tactics = strcat_array(TacticSet, \", \"),\n          Owner = iif(isempty(OwnerName), \"UNASSIGNED\", OwnerName),\n          CreatedTime, DefenderUrl\n| order by AgeHours desc\n| take 100",
+                    "size": 2,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "crossComponentResources": [
+                      "{Workspace}"
+                    ],
+                    "visualization": "table",
+                    "noDataMessage": "No active incidents for this identity in the selected window.",
+                    "exportFieldName": "IncidentNumber",
+                    "exportParameterName": "ActiveIncident",
+                    "exportDefaultValue": "0",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "DefenderUrl",
+                          "formatter": 5
+                        },
+                        {
+                          "columnMatch": "IncidentNumber",
+                          "formatter": 1,
+                          "formatOptions": {
+                            "customColumnWidthSetting": "90px"
+                          }
+                        },
+                        {
+                          "columnMatch": "Title",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Severity",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "High",
+                                "representation": "Sev1",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Medium",
+                                "representation": "Sev2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "Sev3",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "Status",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "SlaState",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "BREACHED",
+                                "representation": "Sev0",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "At risk",
+                                "representation": "Sev2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "AgeHours",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Alerts",
+                          "formatter": 4,
+                          "formatOptions": {
+                            "palette": "blue",
+                            "min": 0
+                          }
+                        },
+                        {
+                          "columnMatch": "AlertDetail",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Detections",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Tactics",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Owner",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "UNASSIGNED",
+                                "representation": "Sev1",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "CreatedTime",
+                          "formatter": 13,
+                          "formatOptions": {
+                            "showRelativeTime": true
+                          }
+                        }
+                      ],
+                      "labelSettings": [
+                        {
+                          "columnId": "IncidentNumber",
+                          "label": "Incident #"
+                        },
+                        {
+                          "columnId": "AgeHours",
+                          "label": "Age (h)"
+                        },
+                        {
+                          "columnId": "AlertDetail",
+                          "label": "Alert detail"
+                        }
+                      ]
+                    }
+                  },
+                  "name": "active-incidents-live",
+                  "conditionalVisibility": {
+                    "parameterName": "DataMode",
+                    "comparison": "isEqualTo",
+                    "value": "Live"
+                  }
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "datatable(IncidentNumber:int, Title:string, Severity:string, Status:string, SlaState:string, AgeHours:real, Alerts:int, AlertDetail:string, Detections:string, Tactics:string, Owner:string, CreatedTime:datetime, DefenderUrl:string)\n[\n 48221,\"Multi-stage insider activity on multiple endpoints\",\"Medium\",\"Active\",\"BREACHED\",45.2,7,\"7 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval; WF_Proxy - Abnormal HTTP Upload\",\"CredentialAccess, Collection, Exfiltration\",\"a.chen@contoso.com\",datetime(2026-07-29T14:12:00Z),\"https://security.microsoft.com/incidents/48221/overview\",\n 48310,\"Bulk credential retrieval from privileged vault\",\"High\",\"New\",\"At risk\",3.1,3,\"3 alert(s) · 2 high\",\"WF_CyberArk - Anomalous Password Retrieval vs User Baseline\",\"CredentialAccess\",\"m.okafor@contoso.com\",datetime(2026-07-31T09:30:00Z),\"https://security.microsoft.com/incidents/48310/overview\",\n 48150,\"Large HTTP upload to file-sharing host\",\"Medium\",\"Active\",\"At risk\",19.9,4,\"4 alert(s) · 1 high\",\"WF_Proxy - Abnormal HTTP Upload (POST_PUT) Activity by User\",\"Collection, Exfiltration\",\"s.patel@contoso.com\",datetime(2026-07-30T16:50:00Z),\"https://security.microsoft.com/incidents/48150/overview\",\n 48298,\"Outbound mail to newly observed external domain\",\"Medium\",\"New\",\"Within SLA\",9.8,2,\"2 alert(s)\",\"WF_Proofpoint - Unusual Outbound Email Domains by Peer Group\",\"Exfiltration\",\"UNASSIGNED\",datetime(2026-07-31T02:55:00Z),\"https://security.microsoft.com/incidents/48298/overview\",\n 47905,\"Suspicious VPN sign-in outside working hours\",\"High\",\"New\",\"BREACHED\",30.4,1,\"1 alert(s) · 1 high\",\"WF_GlobalProtect - Abnormal Origin Location of VPN Connection\",\"InitialAccess\",\"UNASSIGNED\",datetime(2026-07-30T02:41:00Z),\"https://security.microsoft.com/incidents/47905/overview\",\n]\n| order by AgeHours desc",
+                    "size": 2,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "crossComponentResources": [
+                      "{Workspace}"
+                    ],
+                    "visualization": "table",
+                    "noDataMessage": "No active incidents for this identity in the selected window.",
+                    "exportFieldName": "IncidentNumber",
+                    "exportParameterName": "ActiveIncident",
+                    "exportDefaultValue": "0",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "DefenderUrl",
+                          "formatter": 5
+                        },
+                        {
+                          "columnMatch": "IncidentNumber",
+                          "formatter": 1,
+                          "formatOptions": {
+                            "customColumnWidthSetting": "90px"
+                          }
+                        },
+                        {
+                          "columnMatch": "Title",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Severity",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "High",
+                                "representation": "Sev1",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Medium",
+                                "representation": "Sev2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "Sev3",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "Status",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "SlaState",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "BREACHED",
+                                "representation": "Sev0",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "At risk",
+                                "representation": "Sev2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "AgeHours",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Alerts",
+                          "formatter": 4,
+                          "formatOptions": {
+                            "palette": "blue",
+                            "min": 0
+                          }
+                        },
+                        {
+                          "columnMatch": "AlertDetail",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Detections",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Tactics",
+                          "formatter": 1
+                        },
+                        {
+                          "columnMatch": "Owner",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "UNASSIGNED",
+                                "representation": "Sev1",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "CreatedTime",
+                          "formatter": 13,
+                          "formatOptions": {
+                            "showRelativeTime": true
+                          }
+                        }
+                      ],
+                      "labelSettings": [
+                        {
+                          "columnId": "IncidentNumber",
+                          "label": "Incident #"
+                        },
+                        {
+                          "columnId": "AgeHours",
+                          "label": "Age (h)"
+                        },
+                        {
+                          "columnId": "AlertDetail",
+                          "label": "Alert detail"
+                        }
+                      ]
+                    }
+                  },
+                  "name": "active-incidents-demo",
+                  "conditionalVisibility": {
+                    "parameterName": "DataMode",
+                    "comparison": "isEqualTo",
+                    "value": "Sample"
+                  }
+                }
+              ]
+            },
+            "name": "active-inc-shown",
+            "conditionalVisibility": {
+              "parameterName": "ActiveUser",
               "comparison": "isNotEqualTo",
               "value": ""
             }
@@ -3605,9 +4377,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
                             "customColumnWidthSetting": "85px"
                           }
                         },
@@ -3826,9 +4597,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
                             "customColumnWidthSetting": "85px"
                           }
                         },
@@ -4679,10 +5449,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
-                            "linkIsContextBlade": false,
                             "customColumnWidthSetting": "85px"
                           }
                         },
@@ -4825,10 +5593,8 @@
                         },
                         {
                           "columnMatch": "IncidentNumber",
-                          "formatter": 7,
+                          "formatter": 1,
                           "formatOptions": {
-                            "linkTarget": "Url",
-                            "linkIsContextBlade": false,
                             "customColumnWidthSetting": "85px"
                           }
                         },
