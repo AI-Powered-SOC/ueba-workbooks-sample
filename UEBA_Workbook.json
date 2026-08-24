@@ -1,0 +1,665 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "name": "banner",
+      "content": {
+        "json": "<div style=\"padding:14px 18px;background:#0a2342;color:#fff;\"><h2 style=\"margin:0;color:#fff;\">ICO Security Operations Command Center</h2><span style=\"color:#c9d6e8;\">Every panel is one of six patterns. See <code>docs/D2-recipes.md</code> to add or change one.</span></div>"
+      }
+    },
+    {
+      "type": 9,
+      "name": "params",
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [],
+        "parameters": [
+          {
+            "id": "a49e1b87-10fe-57cb-b5b1-1696df3b02c5",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                }
+              ],
+              "allowCustom": true
+            },
+            "value": {
+              "durationMs": 604800000
+            }
+          },
+          {
+            "id": "a4c50937-6a5b-5cae-9539-9da48069feb7",
+            "version": "KqlParameterItem/1.0",
+            "name": "Severity",
+            "label": "Severity",
+            "type": 2,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": "[\"High\", \"Medium\", \"Low\", \"Informational\"]",
+            "value": [
+              "High",
+              "Medium",
+              "Low",
+              "Informational"
+            ]
+          },
+          {
+            "id": "209f29e1-c7f8-5740-b33e-bc1791e98e13",
+            "version": "KqlParameterItem/1.0",
+            "name": "SelectedIncident",
+            "label": "Selected incident",
+            "type": 1,
+            "isRequired": false,
+            "isHiddenWhenLocked": true,
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "type": 11,
+      "name": "tabs",
+      "content": {
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "tabStyle": "bigger",
+        "links": [
+          {
+            "id": "e85a2031-30fe-588c-81d8-871fb05857c8",
+            "cellValue": "ActiveTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Executive Command Center",
+            "subTarget": "t1",
+            "style": "link"
+          },
+          {
+            "id": "d2f6a9bb-7db5-5af1-ab1e-dedc0f43e3a2",
+            "cellValue": "ActiveTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Incident Operations Dashboard",
+            "subTarget": "t2",
+            "style": "link"
+          },
+          {
+            "id": "7e88ee99-e566-54fa-ac38-6b507dc06ee5",
+            "cellValue": "ActiveTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Detection Effectiveness Dashboard",
+            "subTarget": "t3",
+            "style": "link"
+          },
+          {
+            "id": "fcb771fe-6ab7-5c13-9098-4c46e3f6d0b2",
+            "cellValue": "ActiveTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Identity Risk & UEBA Dashboard",
+            "subTarget": "t4",
+            "style": "link"
+          }
+        ]
+      }
+    },
+    {
+      "type": 12,
+      "name": "g-t1",
+      "conditionalVisibility": {
+        "parameterName": "ActiveTab",
+        "comparison": "isEqualTo",
+        "value": "t1"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "name": "t1-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Executive Command Center</b><br><span style=\"color:#555;\">Daily workload snapshot. Four counts and one trend &mdash; nothing else.</span></div>"
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-total",
+            "customWidth": "25",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Value = count()\n| extend Metric = \"Total incidents\"\n| extend Context = \"all statuses\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "noDataMessage": "No incidents match the current filters.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": true,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-open",
+            "customWidth": "25",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| summarize Value = count()\n| extend Metric = \"Open incidents\"\n| extend Context = \"not yet closed\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "noDataMessage": "No incidents match the current filters.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": true,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-highsev",
+            "customWidth": "25",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| where Severity == \"High\"\n| summarize Value = count()\n| extend Metric = \"High severity open\"\n| extend Context = \"open and high\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "noDataMessage": "No incidents match the current filters.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": true,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-unassigned",
+            "customWidth": "25",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| where isempty(tostring(Owner.assignedTo))\n| summarize Value = count()\n| extend Metric = \"Unassigned\"\n| extend Context = \"open, no owner\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "noDataMessage": "No incidents match the current filters.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": true,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 1,
+            "name": "t1-trend-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Incidents created per day</b><br><span style=\"color:#555;\">Split by severity. Use this to spot a spike before it becomes a backlog.</span></div>"
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-trend",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Incidents = count() by bin(CreatedTime, 1d), Severity\n| order by CreatedTime asc",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart",
+              "noDataMessage": "No incidents match the current filters."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": 12,
+      "name": "g-t2",
+      "conditionalVisibility": {
+        "parameterName": "ActiveTab",
+        "comparison": "isEqualTo",
+        "value": "t2"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "name": "t2-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Incident Operations Dashboard</b><br><span style=\"color:#555;\">Open incidents, oldest first. Select a row to get a link straight into the Defender portal.</span></div>"
+            }
+          },
+          {
+            "type": 3,
+            "name": "t2-queue",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != \"Closed\"\n| extend Analyst = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| project IncidentNumber, Title, Severity, Status, Analyst, AgeHours, Alerts, CreatedTime\n| order by AgeHours desc\n| take 100",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "noDataMessage": "No open incidents match the current filters.",
+              "exportFieldName": "IncidentNumber",
+              "exportParameterName": "SelectedIncident",
+              "exportDefaultValue": "",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Severity",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "High",
+                          "representation": "red",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Medium",
+                          "representation": "orange",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Low",
+                          "representation": "yellow",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "representation": "gray",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "AgeHours",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "orange"
+                    }
+                  },
+                  {
+                    "columnMatch": "CreatedTime",
+                    "formatter": 6
+                  }
+                ],
+                "rowLimit": 100,
+                "filter": true
+              }
+            }
+          },
+          {
+            "type": 12,
+            "name": "g-t2-selected",
+            "conditionalVisibility": {
+              "parameterName": "SelectedIncident",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 3,
+                  "name": "t2-defender-link",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where IncidentNumber == {SelectedIncident}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"?tid=\", TenantId)\n| project Incident = IncidentNumber, Title, Severity, Status, DefenderUrl, IncidentUrl",
+                    "size": 4,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "noDataMessage": "Select a row above.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "Severity",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "colors",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "High",
+                                "representation": "red",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Medium",
+                                "representation": "orange",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Low",
+                                "representation": "yellow",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "representation": "gray",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "DefenderUrl",
+                          "formatter": 7,
+                          "formatOptions": {
+                            "linkTarget": "Url",
+                            "linkLabel": "Open in Defender",
+                            "linkIsContextBlade": false
+                          }
+                        },
+                        {
+                          "columnMatch": "IncidentUrl",
+                          "formatter": 7,
+                          "formatOptions": {
+                            "linkTarget": "Url",
+                            "linkLabel": "Open in Azure",
+                            "linkIsContextBlade": false
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": 1,
+                  "name": "t2-link-note",
+                  "content": {
+                    "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;\"><b>Defender link.</b> Built with <code>strcat()</code> from the incident number and tenant ID. It works when the workspace is onboarded to the unified Defender portal &mdash; if it 404s, use the Azure link beside it and see D3 &sect; 13.</div>"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": 12,
+      "name": "g-t3",
+      "conditionalVisibility": {
+        "parameterName": "ActiveTab",
+        "comparison": "isEqualTo",
+        "value": "t3"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "name": "t3-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Detection Effectiveness Dashboard</b><br><span style=\"color:#555;\">Which rules fire most, which rules actually produce incidents, and which are just noise.</span></div>"
+            }
+          },
+          {
+            "type": 1,
+            "name": "t3-alerts-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Top 10 rules by alert volume</b><br><span style=\"color:#555;\">Raw alert count. A rule at the top is not necessarily a problem &mdash; compare with incidents below.</span></div>"
+            }
+          },
+          {
+            "type": 3,
+            "name": "t3-alerts-by-rule",
+            "customWidth": "50",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityAlert\n| where TimeGenerated {TimeRange}\n| where AlertSeverity in ({Severity})\n| summarize Alerts = count(), LastSeen = max(TimeGenerated) by Rule = AlertName\n| top 10 by Alerts desc",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "barchart",
+              "noDataMessage": "No alerts match the current filters."
+            }
+          },
+          {
+            "type": 3,
+            "name": "t3-incidents-by-rule",
+            "customWidth": "50",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Incidents = count(), HighSev = countif(Severity == \"High\") by Rule = Title\n| top 10 by Incidents desc",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "barchart",
+              "noDataMessage": "No incidents match the current filters."
+            }
+          },
+          {
+            "type": 1,
+            "name": "t3-conv-head",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #4a7ebb;background:#f3f6fb;\"><b>Alerts vs incidents, per rule</b><br><span style=\"color:#555;\">The comparison nothing built-in gives you. A high alert count with a low conversion rate is a tuning candidate.</span></div>"
+            }
+          },
+          {
+            "type": 3,
+            "name": "t3-conversion",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Two tables side by side. See D2 recipe P6.\nlet Alerts =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | summarize Alerts = count() by Rule = AlertName;\nlet Incidents =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | summarize Incidents = count() by Rule = Title;\nAlerts\n| join kind=leftouter Incidents on Rule\n| extend Incidents = coalesce(Incidents, long(0))\n| extend ConversionPct = round(100.0 * Incidents / Alerts, 1)\n| extend Verdict = case(Alerts >= 100 and ConversionPct < 10, \"Noisy - tuning candidate\",\n                        ConversionPct >= 80, \"Converts well\",\n                                             \"Normal\")\n| project Rule, Alerts, Incidents, ConversionPct, Verdict\n| order by Alerts desc\n| take 20",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "noDataMessage": "No rules match the current filters.",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Alerts",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "blue"
+                    }
+                  },
+                  {
+                    "columnMatch": "ConversionPct",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "green",
+                      "min": 0,
+                      "max": 100
+                    }
+                  },
+                  {
+                    "columnMatch": "Verdict",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Noisy - tuning candidate",
+                          "representation": "red",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Converts well",
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "representation": "gray",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": true
+              }
+            }
+          },
+          {
+            "type": 1,
+            "name": "t3-note",
+            "content": {
+              "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;\"><b>These panels match on rule <i>name</i>.</b> That is accurate enough for triage and easy to read. When the numbers need to be exact &mdash; and before anyone builds a business case on them &mdash; use the AlertIds join in D2 recipe P6.</div>"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": 12,
+      "name": "g-t4",
+      "conditionalVisibility": {
+        "parameterName": "ActiveTab",
+        "comparison": "isEqualTo",
+        "value": "t4"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "name": "t4-stub",
+            "content": {
+              "json": "<div style=\"padding:14px;border:1px dashed #999;background:#fafafa;\"><b>Identity Risk &amp; UEBA Dashboard &mdash; not built yet.</b><br>Build this tab with the recipes in <code>docs/D2-recipes.md</code>. Planned panels: high-risk users (P3) &middot; risk by department (P3) &middot; risk trend (P4) &middot; UEBA vs analytic incidents (P6)</div>"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "fallbackResourceIds": [],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
