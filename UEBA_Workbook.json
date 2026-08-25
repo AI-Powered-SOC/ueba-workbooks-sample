@@ -5,7 +5,7 @@
       "type": 1,
       "name": "banner",
       "content": {
-        "json": "<div style=\"padding:14px 18px;background:#0a2342;color:#fff;\"><h2 style=\"margin:0;color:#fff;\">ICO Security Operations Command Center</h2><span style=\"color:#c9d6e8;\">Every panel is one of six patterns. See <code>docs/D2-recipes.md</code> to add or change one.</span></div>"
+        "json": "<div style=\"background:#0e2a47;padding:14px 18px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:20px;font-weight:600;\">ICO Security Operations Command Center</span><span style=\"color:#7fb0e6;font-size:12px;\"> &nbsp;build 3.4</span><br><span style=\"color:#a8c6e8;font-size:12px;\">Every panel is one of six patterns. See <code>docs/D2-recipes.md</code> to add or change one.</span></div>"
       }
     },
     {
@@ -67,16 +67,6 @@
               "Low",
               "Informational"
             ]
-          },
-          {
-            "id": "209f29e1-c7f8-5740-b33e-bc1791e98e13",
-            "version": "KqlParameterItem/1.0",
-            "name": "SelectedIncident",
-            "label": "Selected incident",
-            "type": 1,
-            "isRequired": false,
-            "isHiddenWhenLocked": true,
-            "value": ""
           },
           {
             "id": "7429efb7-7614-50b0-a726-9a997f64b808",
@@ -242,27 +232,29 @@
             "type": 1,
             "name": "t1-head",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">Executive Command Center</span><br><span style=\"color:#555;font-size:12px;\">SOC workload, current risk exposure and operational effectiveness at a glance.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">Executive Command Center</span><br><span style=\"color:#a8c6e8;font-size:12px;\">SOC workload, current risk exposure and operational effectiveness at a glance.</span></div>"
             }
           },
           {
             "type": 1,
             "name": "t1-kpi-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Key metrics</span> <span style=\"color:#666;font-size:12px;\">&mdash; All nine tiles honour the filters at the top of the page</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Key metrics</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; nine independent counts, each honouring the filters above</span></div>"
             }
           },
           {
             "type": 3,
-            "name": "t1-kpi",
+            "name": "t1-kpi-total",
+            "customWidth": "11",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Nine tiles from one query -- each union branch is recipe P1/P2.\nlet Base = SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n    | where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n    | where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n    | extend Provider = tostring(AdditionalData.alertProductNames)\n    | where \"{Provider}\" == \"All\" or Provider has \"{Provider}\";\nlet RiskyUsers = toscalar(\n    union isfuzzy=true (AADRiskyUsers | where TimeGenerated {TimeRange}\n        | summarize arg_max(TimeGenerated, *) by UserPrincipalName\n        | where IsDeleted == false and RiskLevel == \"high\"\n          and RiskState in (\"atRisk\", \"confirmedCompromised\")\n        | summarize C = count()),\n      (print C = 0) | summarize max(C));\nunion\n  (Base | summarize Value = count()\n     | extend Metric = \"Total incidents\", Context = \"all statuses\", Ord = 1),\n  (Base | where Status != \"Closed\" | summarize Value = count()\n     | extend Metric = \"Open\", Context = \"not yet closed\", Ord = 2),\n  (Base | where Status != \"Closed\" and Severity == \"High\"\n     | summarize Value = count()\n     | extend Metric = \"High severity open\", Context = \"open and high\", Ord = 3),\n  (Base | where Status != \"Closed\" and AnalystName == \"Unassigned\"\n     | summarize Value = count()\n     | extend Metric = \"Unassigned\", Context = \"open, no owner\", Ord = 4),\n  (Base | where CreatedTime > ago(24h) | summarize Value = count()\n     | extend Metric = \"Created last 24h\", Context = \"new arrivals\", Ord = 5),\n  (Base | where Status == \"Closed\" | summarize Value = count()\n     | extend Metric = \"Closed\", Context = \"resolved in range\", Ord = 6),\n  (Base | where Status == \"Closed\" and isnotempty(ClosedTime)\n     | extend Hrs = (ClosedTime - CreatedTime) / 1h\n     | summarize Value = toint(round(avg(Hrs), 0))\n     | extend Metric = \"Mean time to resolve\", Context = \"hours, closed only\", Ord = 7),\n  (print Value = RiskyUsers\n     | extend Metric = \"High-risk users\", Context = \"Entra ID Protection\", Ord = 8),\n  (Base | summarize Value = dcount(Title)\n     | extend Metric = \"Rules generating incidents\", Context = \"distinct rules\", Ord = 9)\n| order by Ord asc\n| project Metric, Value, Context",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Value = count()\n| extend Metric = \"Total\"\n| extend Context = \"all statuses\"\n| project Metric, Value, Context",
               "size": 4,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "visualization": "tiles",
-              "noDataMessage": "No incidents match the current filters.",
+              "title": "Total incidents",
+              "noDataMessage": "No match.",
               "tileSettings": {
                 "titleContent": {
                   "columnMatch": "Metric",
@@ -287,7 +279,343 @@
                   "columnMatch": "Context",
                   "formatter": 1
                 },
-                "showBorder": true,
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-open",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| summarize Value = count()\n| extend Metric = \"Open\"\n| extend Context = \"not yet closed\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Open incidents",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-highsev",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| where Severity == \"High\"\n| summarize Value = count()\n| extend Metric = \"High sev\"\n| extend Context = \"open + high\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "High severity open",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-unassigned",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| where AnalystName == \"Unassigned\"\n| summarize Value = count()\n| extend Metric = \"Unassigned\"\n| extend Context = \"no owner\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Unassigned",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-new24h",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where CreatedTime > ago(24h)\n| summarize Value = count()\n| extend Metric = \"New 24h\"\n| extend Context = \"just arrived\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Created last 24h",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-closed",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Status == \"Closed\"\n| summarize Value = count()\n| extend Metric = \"Closed\"\n| extend Context = \"in range\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Closed",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-mttr",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Status == \"Closed\" and isnotempty(ClosedTime)\n| extend Hours = (ClosedTime - CreatedTime) / 1h\n| summarize Value = tolong(round(avg(Hours), 0))\n| extend Metric = \"MTTR hrs\"\n| extend Context = \"closed only\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Mean time to resolve",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-risky",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Needs the Microsoft Entra ID Protection connector. If AADRiskyUsers is\n// not present this tile errors on its own -- the other eight are fine.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by UserPrincipalName\n| where IsDeleted == false\n| where RiskLevel == \"high\"\n| where RiskState in (\"atRisk\", \"confirmedCompromised\")\n| summarize Value = count()\n| extend Metric = \"High risk\"\n| extend Context = \"Entra ID\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "High-risk users",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            }
+          },
+          {
+            "type": 3,
+            "name": "t1-kpi-rules",
+            "customWidth": "11",
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend ProviderName = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Value = dcount(Title)\n| extend Metric = \"Rules\"\n| extend Context = \"distinct\"\n| project Metric, Value, Context",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "title": "Rules generating incidents",
+              "noDataMessage": "No match.",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Metric",
+                  "formatter": 1
+                },
+                "leftContent": {
+                  "columnMatch": "Value",
+                  "formatter": 12,
+                  "formatOptions": {
+                    "palette": "auto",
+                    "min": 0
+                  },
+                  "numberFormat": {
+                    "unit": 17,
+                    "options": {
+                      "style": "decimal",
+                      "maximumFractionDigits": 0
+                    }
+                  }
+                },
+                "secondaryContent": {
+                  "columnMatch": "Context",
+                  "formatter": 1
+                },
+                "showBorder": false,
                 "size": "auto"
               }
             }
@@ -296,56 +624,447 @@
             "type": 1,
             "name": "t1-break-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Breakdowns</span> <span style=\"color:#666;font-size:12px;\">&mdash; Severity and status of everything in range; ageing counts open incidents only</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Breakdowns</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; severity and status cover everything in range; ageing counts open incidents only</span></div>"
             }
           },
           {
-            "type": 3,
-            "name": "t1-by-severity",
+            "type": 12,
+            "name": "g-t1-by-severity",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| summarize Incidents = count() by Severity\n| order by Incidents desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "piechart",
-              "noDataMessage": "No incidents match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t1-by-severity-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Share of all incidents in range. <b>Select a slice</b> to list those incidents below.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t1-by-severity",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Incidents = count() by Severity\n| order by Incidents desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "piechart",
+                    "noDataMessage": "No incidents match the current filters.",
+                    "title": "Incidents by severity"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t1-by-status",
+            "type": 12,
+            "name": "g-t1-by-status",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| summarize Incidents = count() by Status\n| order by Incidents desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "piechart",
-              "noDataMessage": "No incidents match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t1-by-status-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Where incidents sit right now. <b>Select a slice</b> to list them with a link that opens each incident in a new tab.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t1-by-status",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Incidents = count() by Status\n| order by Incidents desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "piechart",
+                    "noDataMessage": "No incidents match the current filters.",
+                    "title": "Incidents by status"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t1-aging",
+            "type": 12,
+            "name": "g-t1-aging",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| extend AgeDays = (now() - CreatedTime) / 1d\n| extend Bucket = case(AgeDays < 1, \"1 - under 24h\",\n                       AgeDays < 3, \"2 - 1 to 3 days\",\n                       AgeDays < 7, \"3 - 3 to 7 days\",\n                       AgeDays < 30, \"4 - 7 to 30 days\",\n                                     \"5 - over 30 days\")\n| summarize Incidents = count() by Bucket\n| order by Bucket asc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No open incidents match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t1-aging-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">How long <b>open</b> incidents have been waiting. &#9888; Buckets older than the selected <b>Time range</b> cannot populate.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t1-aging",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window, matching tab 2.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| extend AgeDays = (now() - CreatedTime) / 1d\n| extend Bucket = case(AgeDays < 1, \"1 - under 24h\",\n                       AgeDays < 3, \"2 - 1 to 3 days\",\n                       AgeDays < 7, \"3 - 3 to 7 days\",\n                       AgeDays < 30, \"4 - 7 to 30 days\",\n                                     \"5 - over 30 days\")\n| summarize Incidents = count() by Bucket\n| order by Bucket asc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No open incidents match the current filters.",
+                    "title": "Incident aging distribution"
+                  }
+                }
+              ]
+            }
           },
           {
             "type": 1,
-            "name": "t1-rules-sub",
+            "name": "t1-detail-toggle-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Top incident-producing rules</span> <span style=\"color:#666;font-size:12px;\">&mdash; Which detections are driving the current workload</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Collapse the incident tables below without losing your category selection. The active choice is highlighted.</span></div>"
+            }
+          },
+          {
+            "type": 11,
+            "name": "t1-detail-toggle",
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "tabs",
+              "links": [
+                {
+                  "id": "87f1f6a1-4d8a-5d2f-a704-328b10ffcac4",
+                  "cellValue": "ShowDetails",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Show incident tables",
+                  "subTarget": "Show",
+                  "style": "link",
+                  "icon": "Info"
+                },
+                {
+                  "id": "b274a6fc-37a5-51e1-9b40-4dce81448a82",
+                  "cellValue": "ShowDetails",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Hide incident tables",
+                  "subTarget": "Hide",
+                  "style": "link",
+                  "icon": "Uninitialized"
+                }
+              ]
+            }
+          },
+          {
+            "type": 1,
+            "name": "t1-sev-pick-desc",
+            "content": {
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\"><b>Select a severity</b> to list those incidents below.</span></div>"
+            }
+          },
+          {
+            "type": 11,
+            "name": "t1-sev-picker",
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "toolbar",
+              "links": [
+                {
+                  "id": "780816f1-fd6c-5142-b6a0-84dcee4d67bc",
+                  "cellValue": "SelectedSeverity",
+                  "linkTarget": "parameter",
+                  "linkLabel": "All",
+                  "subTarget": "All",
+                  "style": "link",
+                  "icon": "Info"
+                },
+                {
+                  "id": "67b2a495-2c0b-5204-8144-4599faab0151",
+                  "cellValue": "SelectedSeverity",
+                  "linkTarget": "parameter",
+                  "linkLabel": "High",
+                  "subTarget": "High",
+                  "style": "link",
+                  "icon": "Critical"
+                },
+                {
+                  "id": "8af20094-67a1-50a6-8629-2bd5a4e55fca",
+                  "cellValue": "SelectedSeverity",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Medium",
+                  "subTarget": "Medium",
+                  "style": "link",
+                  "icon": "Warning"
+                },
+                {
+                  "id": "9947342f-829b-5520-ba3b-7366f1166d67",
+                  "cellValue": "SelectedSeverity",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Low",
+                  "subTarget": "Low",
+                  "style": "link",
+                  "icon": "Info"
+                },
+                {
+                  "id": "b4b6061d-36a0-50bf-a642-2ee8a4584f60",
+                  "cellValue": "SelectedSeverity",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Informational",
+                  "subTarget": "Informational",
+                  "style": "link",
+                  "icon": "Info"
+                }
+              ]
+            }
+          },
+          {
+            "type": 12,
+            "name": "g-t1-sev-detail",
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t1-sev-detail-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Appears when you select a slice on the severity donut. Select the same slice again to clear it.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t1-sev-detail",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n    | where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n    | where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n    | extend ProviderName = tostring(AdditionalData.alertProductNames)\n    | where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where \"{SelectedSeverity}\" == \"All\" or Severity == \"{SelectedSeverity}\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, CreatedTime\n| order by AgeHours desc\n| take 100",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "title": "Incidents in the selected severity",
+                    "noDataMessage": "No incidents of that severity in range.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "Severity",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "colors",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "High",
+                                "representation": "red",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Medium",
+                                "representation": "orange",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Low",
+                                "representation": "yellow",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "representation": "gray",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "AgeHours",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "palette": "orange"
+                          }
+                        },
+                        {
+                          "columnMatch": "CreatedTime",
+                          "formatter": 6
+                        }
+                      ],
+                      "filter": true
+                    }
+                  }
+                }
+              ]
+            },
+            "conditionalVisibilities": [
+              {
+                "parameterName": "SelectedSeverity",
+                "comparison": "isNotEqualTo",
+                "value": ""
+              },
+              {
+                "parameterName": "ShowDetails",
+                "comparison": "isNotEqualTo",
+                "value": "Hide"
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "t1-status-pick-desc",
+            "content": {
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\"><b>Select a status</b> to list those incidents, each with a link that opens in a new browser tab.</span></div>"
+            }
+          },
+          {
+            "type": 11,
+            "name": "t1-status-picker",
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "toolbar",
+              "links": [
+                {
+                  "id": "1f4c529e-1d14-5d05-93e4-96126ce72926",
+                  "cellValue": "SelectedStatus",
+                  "linkTarget": "parameter",
+                  "linkLabel": "All",
+                  "subTarget": "All",
+                  "style": "link",
+                  "icon": "Info"
+                },
+                {
+                  "id": "7f9ab0e1-d17c-55c2-8d83-4389c9ce7db3",
+                  "cellValue": "SelectedStatus",
+                  "linkTarget": "parameter",
+                  "linkLabel": "New",
+                  "subTarget": "New",
+                  "style": "link",
+                  "icon": "Info"
+                },
+                {
+                  "id": "a7a3005c-13f7-5e8f-86e4-b3d9f7e495ef",
+                  "cellValue": "SelectedStatus",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Active",
+                  "subTarget": "Active",
+                  "style": "link",
+                  "icon": "Warning"
+                },
+                {
+                  "id": "78b02ba7-5350-583b-bebf-4382b040dc56",
+                  "cellValue": "SelectedStatus",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Closed",
+                  "subTarget": "Closed",
+                  "style": "link",
+                  "icon": "Success"
+                }
+              ]
+            }
+          },
+          {
+            "type": 12,
+            "name": "g-t1-status-detail",
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t1-status-detail-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Appears when you select a slice on the status donut. <b>Open in Defender</b> opens that incident in a new browser tab.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t1-status-detail",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n    | where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n    | where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n    | extend ProviderName = tostring(AdditionalData.alertProductNames)\n    | where \"{Provider}\" == \"All\" or ProviderName has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where \"{SelectedStatus}\" == \"All\" or Status == \"{SelectedStatus}\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incident2/\", tostring(IncidentNumber), \"/overview?tid=\", TenantId)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, DefenderUrl\n| order by AgeHours desc\n| take 100",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "title": "Incidents in the selected status",
+                    "noDataMessage": "No incidents with that status in range.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "Severity",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "colors",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "High",
+                                "representation": "red",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Medium",
+                                "representation": "orange",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Low",
+                                "representation": "yellow",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "representation": "gray",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "AgeHours",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "palette": "orange"
+                          }
+                        },
+                        {
+                          "columnMatch": "DefenderUrl",
+                          "formatter": 7,
+                          "formatOptions": {
+                            "linkTarget": "Url",
+                            "linkLabel": "Open in Defender",
+                            "linkIsContextBlade": false
+                          }
+                        }
+                      ],
+                      "filter": true
+                    }
+                  }
+                }
+              ]
+            },
+            "conditionalVisibilities": [
+              {
+                "parameterName": "SelectedStatus",
+                "comparison": "isNotEqualTo",
+                "value": ""
+              },
+              {
+                "parameterName": "ShowDetails",
+                "comparison": "isNotEqualTo",
+                "value": "Hide"
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "t1-top-rules-desc",
+            "content": {
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Which detections are driving the current workload.</span></div>"
             }
           },
           {
@@ -353,65 +1072,27 @@
             "name": "t1-top-rules",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| summarize Incidents = count() by Rule = Title\n| top 10 by Incidents desc",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Incidents = count() by Rule = Title\n| top 10 by Incidents desc",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "visualization": "categoricalbar",
-              "noDataMessage": "No incidents match the current filters."
+              "noDataMessage": "No incidents match the current filters.",
+              "title": "Top 10 incident-producing analytic rules"
             }
           },
           {
             "type": 1,
             "name": "t1-trend-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Incident arrival trend</span> <span style=\"color:#666;font-size:12px;\">&mdash; Grouped by the day an incident was <b>created</b>, split by severity</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Trend</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; uses the page Time range filter</span></div>"
             }
           },
           {
             "type": 1,
-            "name": "t1-trend-scope",
+            "name": "t1-trend-desc",
             "content": {
-              "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;font-size:12px;\">&#9660; The buttons below set the window for the <b>trend chart only</b>. Everything above uses the page-level <i>Time range</i>.</div>"
-            }
-          },
-          {
-            "type": 9,
-            "name": "t1-trend-controls",
-            "content": {
-              "version": "KqlParameterItem/1.0",
-              "style": "pills",
-              "queryType": 0,
-              "parameters": [
-                {
-                  "id": "cddb01dd-3502-5647-b3e5-dc03e55e6a98",
-                  "version": "KqlParameterItem/1.0",
-                  "name": "TrendRange",
-                  "label": "Trend window",
-                  "type": 4,
-                  "isRequired": true,
-                  "typeSettings": {
-                    "selectableValues": [
-                      {
-                        "durationMs": 604800000
-                      },
-                      {
-                        "durationMs": 1209600000
-                      },
-                      {
-                        "durationMs": 2592000000
-                      },
-                      {
-                        "durationMs": 7776000000
-                      }
-                    ],
-                    "allowCustom": true
-                  },
-                  "value": {
-                    "durationMs": 2592000000
-                  }
-                }
-              ]
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Arrival rate by the day an incident was <b>created</b>, following the <b>Time range</b> filter at the top of the page.</span></div>"
             }
           },
           {
@@ -419,12 +1100,13 @@
             "name": "t1-trend",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Uses {TrendRange} -- the buttons above, not the page filter.\nSecurityIncident\n| where TimeGenerated {TrendRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| summarize Incidents = count() by bin(CreatedTime, 1d), Severity\n| order by CreatedTime asc",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// The rows are selected on TimeGenerated (when the incident was last\n// UPDATED) but the chart plots CreatedTime (when it arrived). Without\n// this second filter an incident created months ago but touched\n// yesterday stretches the axis back months. See D3 section 24.\n| where CreatedTime {TimeRange}\n| summarize Incidents = count() by bin(CreatedTime, 1d), Severity\n| order by CreatedTime asc",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "visualization": "timechart",
-              "noDataMessage": "No incidents in the selected trend window."
+              "noDataMessage": "No incidents in the selected trend window.",
+              "title": "Incidents created per day, by severity"
             }
           }
         ]
@@ -446,14 +1128,14 @@
             "type": 1,
             "name": "t2-head",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">Incident Operations Dashboard</span><br><span style=\"color:#555;font-size:12px;\">A prioritised work queue and workload visibility for analysts and shift leads.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">Incident Operations Dashboard</span><br><span style=\"color:#a8c6e8;font-size:12px;\">A prioritised work queue and workload visibility for analysts and shift leads.</span></div>"
             }
           },
           {
             "type": 1,
-            "name": "t2-queue-sub",
+            "name": "t2-queue-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Active incident queue</span> <span style=\"color:#666;font-size:12px;\">&mdash; Open incidents, oldest first. Select a row for a direct link into the incident</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Open incidents <b>created in the selected time range</b>, oldest first. Select a row for a direct link into the incident.</span></div>"
             }
           },
           {
@@ -461,7 +1143,7 @@
             "name": "t2-queue",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -518,7 +1200,8 @@
               },
               "exportFieldName": "IncidentNumber",
               "exportParameterName": "SelectedIncident",
-              "exportDefaultValue": ""
+              "exportDefaultValue": "",
+              "title": "Active incident queue"
             }
           },
           {
@@ -534,11 +1217,18 @@
               "groupType": "editable",
               "items": [
                 {
+                  "type": 1,
+                  "name": "t2-defender-link-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Appears when you select a row above. Defender link first, Azure link as a fallback.</span></div>"
+                  }
+                },
+                {
                   "type": 3,
                   "name": "t2-defender-link",
                   "content": {
                     "version": "KqlItem/1.0",
-                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where IncidentNumber == {SelectedIncident}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incidents/\", tostring(IncidentNumber), \"?tid=\", TenantId)\n| project Incident = IncidentNumber, Title, Severity, Status, DefenderUrl, IncidentUrl",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where IncidentNumber == {SelectedIncident}\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend DefenderUrl = strcat(\"https://security.microsoft.com/incident2/\", tostring(IncidentNumber), \"/overview?tid=\", TenantId)\n| project Incident = IncidentNumber, Title, Severity, Status, DefenderUrl, IncidentUrl",
                     "size": 4,
                     "queryType": 0,
                     "resourceType": "microsoft.operationalinsights/workspaces",
@@ -597,14 +1287,15 @@
                           }
                         }
                       ]
-                    }
+                    },
+                    "title": "Selected incident"
                   }
                 },
                 {
                   "type": 1,
                   "name": "t2-link-note",
                   "content": {
-                    "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;\"><b>Defender link.</b> Built with <code>strcat()</code> from the incident number and tenant ID. It works when the workspace is onboarded to the unified Defender portal &mdash; if it 404s, use the Azure link beside it and see D3 &sect; 13.</div>"
+                    "json": "<div style=\"background:#3a2e15;padding:10px 14px;border-left:4px solid #d4a13c;border-radius:2px;\"><span style=\"color:#f2e0b5;font-size:12px;\">**Defender link.** Built from the incident number and tenant ID. It works once the workspace is onboarded to the unified Defender portal \u2014 if it 404s, use the Azure link beside it and see D3 \u00a7 13.</span></div>"
                   }
                 }
               ]
@@ -614,42 +1305,78 @@
             "type": 1,
             "name": "t2-analyst-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Open incidents by analyst</span> <span style=\"color:#666;font-size:12px;\">&mdash; Current workload distribution across the team</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Workload distribution</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; &nbsp;</span></div>"
             }
           },
           {
-            "type": 3,
-            "name": "t2-by-analyst",
+            "type": 12,
+            "name": "g-t2-by-analyst",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| summarize Open = count() by AnalystName\n| top 15 by Open desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No open incidents match the current filters."
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t2-by-analyst-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Workload per person for incidents created in range. A tall <b>Unassigned</b> bar is the queue nobody owns yet.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t2-by-analyst",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| summarize Open = count() by AnalystName\n| top 15 by Open desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No open incidents match the current filters.",
+                    "title": "Open incidents by analyst"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t2-aging",
+            "type": 12,
+            "name": "g-t2-aging",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| extend AgeDays = (now() - CreatedTime) / 1d\n| extend Bucket = case(AgeDays < 1, \"1 - under 24h\",\n                       AgeDays < 3, \"2 - 1 to 3 days\",\n                       AgeDays < 7, \"3 - 3 to 7 days\",\n                       AgeDays < 30, \"4 - 7 to 30 days\",\n                                     \"5 - over 30 days\")\n| summarize Incidents = count() by Bucket, Severity\n| order by Bucket asc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "barchart",
-              "noDataMessage": "No open incidents match the current filters."
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t2-aging-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Ageing of open incidents created in range, split by severity. &#9888; Buckets older than the selected window cannot populate &mdash; widen <b>Time range</b> to see the long tail.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t2-aging",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| extend AgeDays = (now() - CreatedTime) / 1d\n| extend Bucket = case(AgeDays < 1, \"1 - under 24h\",\n                       AgeDays < 3, \"2 - 1 to 3 days\",\n                       AgeDays < 7, \"3 - 3 to 7 days\",\n                       AgeDays < 30, \"4 - 7 to 30 days\",\n                                     \"5 - over 30 days\")\n| summarize Incidents = count() by Bucket, Severity\n| order by Bucket asc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "barchart",
+                    "noDataMessage": "No open incidents match the current filters.",
+                    "title": "Incident aging buckets, by severity"
+                  }
+                }
+              ]
+            }
           },
           {
             "type": 1,
             "name": "t2-sla-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">SLA breach tracking</span> <span style=\"color:#666;font-size:12px;\">&mdash; Time to first touch against a per-severity target. Adjust the targets below to match your policy</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">SLA breach tracking</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; &nbsp;</span></div>"
             }
           },
           {
@@ -691,11 +1418,18 @@
             }
           },
           {
+            "type": 1,
+            "name": "t2-sla-desc",
+            "content": {
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Time to first touch against the per-severity targets set above, for incidents created in range. Adjust the targets to match your policy.</span></div>"
+            }
+          },
+          {
             "type": 3,
             "name": "t2-sla",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| extend AgeHours = (now() - CreatedTime) / 1h\n| extend TargetHours = case(Severity == \"High\", {SlaHigh},\n                            Severity == \"Medium\", {SlaMedium},\n                            {SlaLow})\n| extend ElapsedHours = iff(isnotempty(FirstModifiedTime),\n    (FirstModifiedTime - CreatedTime) / 1h, AgeHours)\n| extend SLA = iff(ElapsedHours > TargetHours, \"BREACHED\", \"Within SLA\")\n| where SLA == \"BREACHED\"\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName,\n          TargetHours, ElapsedHours = round(ElapsedHours, 1), SLA, CreatedTime\n| order by ElapsedHours desc\n| take 100",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| extend AgeHours = (now() - CreatedTime) / 1h\n| extend TargetHours = case(Severity == \"High\", {SlaHigh},\n                            Severity == \"Medium\", {SlaMedium},\n                            {SlaLow})\n| extend ElapsedHours = iff(isnotempty(FirstModifiedTime),\n    (FirstModifiedTime - CreatedTime) / 1h, AgeHours)\n| extend SLA = iff(ElapsedHours > TargetHours, \"BREACHED\", \"Within SLA\")\n| where SLA == \"BREACHED\"\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName,\n          TargetHours, ElapsedHours = round(ElapsedHours, 1), SLA, CreatedTime\n| order by ElapsedHours desc\n| take 100",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -748,14 +1482,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "SLA breaches"
             }
           },
           {
             "type": 1,
-            "name": "t2-unassigned-sub",
+            "name": "t2-unassigned-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Unassigned incidents</span> <span style=\"color:#666;font-size:12px;\">&mdash; Open, with no owner &mdash; the queue that needs triage first</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Created in range, open, and with no owner &mdash; the queue that needs triage first.</span></div>"
             }
           },
           {
@@ -763,7 +1498,7 @@
             "name": "t2-unassigned",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| where AnalystName == \"Unassigned\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| where AnalystName == \"Unassigned\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -817,14 +1552,15 @@
                 ],
                 "rowLimit": 100,
                 "filter": true
-              }
+              },
+              "title": "Unassigned incidents"
             }
           },
           {
             "type": 1,
-            "name": "t2-highsev-sub",
+            "name": "t2-highsev-queue-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">High severity incident queue</span> <span style=\"color:#666;font-size:12px;\">&mdash; Open and high severity, oldest first</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Created in range, open and high severity, oldest first.</span></div>"
             }
           },
           {
@@ -832,7 +1568,7 @@
             "name": "t2-highsev-queue",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Status != \"Closed\"\n| where Severity == \"High\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
+              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the selected window.\n// The filter above selects on TimeGenerated, which is when the row was\n// WRITTEN -- i.e. when the incident was last updated. Without this an\n// incident opened six months ago but touched yesterday still appears.\n| where CreatedTime {TimeRange}\n| where Status != \"Closed\"\n| where Severity == \"High\"\n| extend AgeHours = round((now() - CreatedTime) / 1h, 1)\n| extend Alerts = array_length(AlertIds)\n| extend Rules = tostring(AdditionalData.alertProductNames)\n| project IncidentNumber, Title, Severity, Status, Analyst = AnalystName, AgeHours, Alerts, Rules, Provider, CreatedTime\n| order by AgeHours desc\n| take 100",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -886,7 +1622,8 @@
                 ],
                 "rowLimit": 100,
                 "filter": true
-              }
+              },
+              "title": "High severity incident queue"
             }
           }
         ]
@@ -908,63 +1645,124 @@
             "type": 1,
             "name": "t3-head",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">Detection Effectiveness Dashboard</span><br><span style=\"color:#555;font-size:12px;\">Operational impact per rule, noisy detections, and tuning candidates.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">Detection Effectiveness Dashboard</span><br><span style=\"color:#a8c6e8;font-size:12px;\">Operational impact per rule, noisy detections, and tuning candidates.</span></div>"
             }
           },
           {
             "type": 1,
             "name": "t3-vol-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Volume by rule</span> <span style=\"color:#666;font-size:12px;\">&mdash; Top 10 each. A rule high on alerts but absent from incidents is generating noise nobody acts on</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Volume by rule</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; Compare the three: a rule high on alerts but absent from incidents is generating noise nobody acts on.</span></div>"
             }
           },
           {
-            "type": 3,
-            "name": "t3-alerts-by-rule",
+            "type": 12,
+            "name": "g-t3-alerts-by-rule",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Exactly two columns: label, number. A datetime column would switch\n// this into time-series mode and the bars would vanish.\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where AlertSeverity in ({Severity})\n| where \"{Rule}\" == \"All\" or AlertName == \"{Rule}\"\n| where \"{Provider}\" == \"All\" or ProductName has \"{Provider}\"\n| summarize Alerts = count() by Rule = AlertName\n| top 10 by Alerts desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No alerts match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t3-alerts-by-rule-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Raw alert count per rule. Being at the top is not automatically a problem \u2014 compare with incidents.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t3-alerts-by-rule",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Exactly two columns: label, number. A datetime column would switch\n// this into time-series mode and the bars would vanish.\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where AlertSeverity in ({Severity})\n| where \"{Rule}\" == \"All\" or AlertName == \"{Rule}\"\n| where \"{Provider}\" == \"All\" or ProductName has \"{Provider}\"\n| summarize Alerts = count() by Rule = AlertName\n| top 10 by Alerts desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No alerts match the current filters.",
+                    "title": "Top 10 rules by alert volume"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t3-incidents-by-rule",
+            "type": 12,
+            "name": "g-t3-incidents-by-rule",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| summarize Incidents = count() by Rule = Title\n| top 10 by Incidents desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No incidents match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t3-incidents-by-rule-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Which rules actually produced incidents. A rule high on alerts but missing here is generating noise.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t3-incidents-by-rule",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| summarize Incidents = count() by Rule = Title\n| top 10 by Incidents desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No incidents match the current filters.",
+                    "title": "Top 10 rules by incident volume"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t3-highsev-by-rule",
+            "type": 12,
+            "name": "g-t3-highsev-by-rule",
+            "customWidth": "33",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n| where Severity == \"High\"\n| summarize HighSevIncidents = count() by Rule = Title\n| top 10 by HighSevIncidents desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No high-severity incidents match the current filters."
-            },
-            "customWidth": "33"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t3-highsev-by-rule-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Which rules produce the incidents that matter most.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t3-highsev-by-rule",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "SecurityIncident\n| where TimeGenerated {TimeRange}\n| where Severity in ({Severity})\n| where \"{IncidentStatus}\" == \"All\" or Status == \"{IncidentStatus}\"\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| extend AnalystName = iff(isempty(tostring(Owner.assignedTo)), \"Unassigned\", tostring(Owner.assignedTo))\n| where \"{Analyst}\" == \"All\" or AnalystName == \"{Analyst}\"\n| where \"{Rule}\" == \"All\" or Title == \"{Rule}\"\n| extend Provider = tostring(AdditionalData.alertProductNames)\n| where \"{Provider}\" == \"All\" or Provider has \"{Provider}\"\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n| where Severity == \"High\"\n| summarize HighSevIncidents = count() by Rule = Title\n| top 10 by HighSevIncidents desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No high-severity incidents match the current filters.",
+                    "title": "Top 10 rules by high-severity incidents"
+                  }
+                }
+              ]
+            }
           },
           {
             "type": 1,
             "name": "t3-conv-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Alerts vs incidents, per rule</span> <span style=\"color:#666;font-size:12px;\">&mdash; The comparison nothing built-in gives you &mdash; high alert volume with low conversion is a tuning candidate</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Conversion and tuning</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; &nbsp;</span></div>"
+            }
+          },
+          {
+            "type": 1,
+            "name": "t3-conversion-desc",
+            "content": {
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">High alert volume with low conversion is a tuning candidate. The **Verdict** column flags them.</span></div>"
             }
           },
           {
@@ -972,7 +1770,7 @@
             "name": "t3-conversion",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Two tables side by side -- recipe P6.\nlet Alerts =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | summarize Alerts = count() by Rule = AlertName;\nlet Incidents =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | summarize Incidents = count(),\n                HighSev = countif(Severity == \"High\") by Rule = Title;\nAlerts\n| join kind=leftouter Incidents on Rule\n| extend Incidents = coalesce(Incidents, long(0))\n| extend HighSev = coalesce(HighSev, long(0))\n| extend ConversionPct = round(100.0 * Incidents / Alerts, 1)\n| extend Verdict = case(Alerts >= 100 and ConversionPct < 10, \"Noisy - tuning candidate\",\n                        ConversionPct >= 80, \"Converts well\",\n                                             \"Normal\")\n| project Rule, Alerts, Incidents, HighSev, ConversionPct, Verdict\n| order by Alerts desc\n| take 20",
+              "query": "// Two tables side by side -- recipe P6.\nlet Alerts =\n    SecurityAlert\n    | where TimeGenerated {TimeRange}\n    | summarize Alerts = count() by Rule = AlertName;\nlet Incidents =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n    | summarize Incidents = count(),\n                HighSev = countif(Severity == \"High\") by Rule = Title;\nAlerts\n| join kind=leftouter Incidents on Rule\n| extend Incidents = coalesce(Incidents, long(0))\n| extend HighSev = coalesce(HighSev, long(0))\n| extend ConversionPct = round(100.0 * Incidents / Alerts, 1)\n| extend Verdict = case(Alerts >= 100 and ConversionPct < 10, \"Noisy - tuning candidate\",\n                        ConversionPct >= 80, \"Converts well\",\n                                             \"Normal\")\n| project Rule, Alerts, Incidents, HighSev, ConversionPct, Verdict\n| order by Alerts desc\n| take 20",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -1038,14 +1836,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "Alerts vs incidents, per rule"
             }
           },
           {
             "type": 1,
-            "name": "t3-mitre-sub",
+            "name": "t3-mitre-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">MITRE ATT&amp;CK coverage</span> <span style=\"color:#666;font-size:12px;\">&mdash; Which tactics your detections are actually producing signal for</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Which tactics your detections are actually producing signal for. Gaps here are coverage gaps.</span></div>"
             }
           },
           {
@@ -1058,14 +1857,15 @@
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "visualization": "categoricalbar",
-              "noDataMessage": "No alerts carry MITRE tactics in this range."
+              "noDataMessage": "No alerts carry MITRE tactics in this range.",
+              "title": "MITRE ATT&CK tactic coverage"
             }
           },
           {
             "type": 1,
             "name": "t3-note",
             "content": {
-              "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;font-size:12px;\"><b>These panels match on rule <i>name</i></b> (<code>AlertName</code> &harr; <code>Title</code>). Accurate enough for triage. Before anyone builds a business case on the numbers, switch to the <code>AlertIds</code> join in D2 recipe P6.</div>"
+              "json": "<div style=\"background:#3a2e15;padding:10px 14px;border-left:4px solid #d4a13c;border-radius:2px;\"><span style=\"color:#f2e0b5;font-size:12px;\">**These panels match on rule *name*** (`AlertName` \u2194 `Title`). Accurate enough for triage. Before anyone builds a business case on the numbers, switch to the `AlertIds` join in D2 recipe P6.</span></div>"
             }
           }
         ]
@@ -1087,135 +1887,200 @@
             "type": 1,
             "name": "t4-head",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">Identity Risk &amp; UEBA Dashboard</span><br><span style=\"color:#555;font-size:12px;\">Who is flagged as risky by Entra ID Protection, and who is behaving unusually according to UEBA.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">Identity Risk & UEBA Dashboard</span><br><span style=\"color:#a8c6e8;font-size:12px;\">Who is flagged as risky by Entra ID Protection, and who is behaving unusually according to UEBA.</span></div>"
             }
           },
           {
             "type": 1,
             "name": "t4-privacy",
             "content": {
-              "json": "<div style=\"padding:10px 14px;border-left:4px solid #6b7f9e;background:#f2f5f9;font-size:12px;\"><b>Names are pseudonymised by default.</b> The same person keeps the same handle, so cases stay trackable without real names on a leadership dashboard. Switch <i>Identity display</i> to <b>Actual</b> when you need to act on someone specific. Microsoft's own Purview Insider Risk Management pseudonymises by default for the same reason.</div>"
+              "json": "<div style=\"background:#3a2e15;padding:10px 14px;border-left:4px solid #d4a13c;border-radius:2px;\"><span style=\"color:#f2e0b5;font-size:12px;\">**Names are pseudonymised by default.** The same person keeps the same handle, so cases stay trackable without real names on a leadership dashboard. Switch *Identity display* to **Actual** when you need to act on someone specific. Microsoft's own Purview Insider Risk Management pseudonymises by default for the same reason.</span></div>"
             }
           },
           {
             "type": 1,
             "name": "t4-readiness-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Data readiness &mdash; check first</span> <span style=\"color:#666;font-size:12px;\">&mdash; Which sources are actually reporting. A missing source means the panels below it will be empty</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Data readiness \u2014 check first</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; A missing source means the panels below it will be empty.</span></div>"
             }
           },
           {
-            "type": 3,
-            "name": "t4-readiness",
+            "type": 12,
+            "name": "g-t4-readiness",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Run this first. It tells you which panels below can work at all.\nunion isfuzzy=true\n  (BehaviorAnalytics | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"BehaviorAnalytics (UEBA)\"),\n  (Anomalies | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"Anomalies (UEBA models)\"),\n  (AADRiskyUsers | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"AADRiskyUsers (Entra ID Protection)\")\n| extend Status = iff(Rows > 0, \"Available\", \"No data - connector or feature not enabled\")\n| project Source, Rows, Users, Status",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "table",
-              "noDataMessage": "None of the three sources returned data."
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-readiness-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Which of the three identity sources are reporting. A missing source means the panels below it will be empty.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-readiness",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Run this first. It tells you which panels below can work at all.\nunion isfuzzy=true\n  (BehaviorAnalytics | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"BehaviorAnalytics (UEBA)\"),\n  (Anomalies | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"Anomalies (UEBA models)\"),\n  (AADRiskyUsers | where TimeGenerated {TimeRange}\n     | summarize Rows = count(), Users = dcount(UserPrincipalName)\n     | extend Source = \"AADRiskyUsers (Entra ID Protection)\")\n| extend Status = iff(Rows > 0, \"Available\", \"No data - connector or feature not enabled\")\n| project Source, Rows, Users, Status",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "noDataMessage": "None of the three sources returned data.",
+                    "title": "Data source readiness"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t4-dept-coverage",
+            "type": 12,
+            "name": "g-t4-dept-coverage",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "// Department and job title come from Entra ID user attributes.\n// If coverage is low, every division breakdown reads 'Unmapped'.\nBehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| summarize Rows = count(),\n            WithDepartment = countif(isnotempty(tostring(UsersInsights.Department))),\n            WithJobTitle = countif(isnotempty(tostring(UsersInsights.JobTitle)))\n| extend DepartmentCoverage = strcat(tostring(iff(Rows > 0,\n    round(100.0 * WithDepartment / Rows, 0), 0.0)), \"%\")\n| extend JobTitleCoverage = strcat(tostring(iff(Rows > 0,\n    round(100.0 * WithJobTitle / Rows, 0), 0.0)), \"%\")\n| project Rows, DepartmentCoverage, JobTitleCoverage",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "table",
-              "noDataMessage": "No BehaviorAnalytics data. Is UEBA enabled?"
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-dept-coverage-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">How much of your UEBA data carries Entra ID attributes. Low coverage means the department chart reads *Unmapped*.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-dept-coverage",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// Department and job title come from Entra ID user attributes.\n// If coverage is low, every division breakdown reads 'Unmapped'.\nBehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| summarize Rows = count(),\n            WithDepartment = countif(isnotempty(tostring(UsersInsights.Department))),\n            WithJobTitle = countif(isnotempty(tostring(UsersInsights.JobTitle)))\n| extend DepartmentCoverage = strcat(tostring(iff(Rows > 0,\n    round(100.0 * WithDepartment / Rows, 0), 0.0)), \"%\")\n| extend JobTitleCoverage = strcat(tostring(iff(Rows > 0,\n    round(100.0 * WithJobTitle / Rows, 0), 0.0)), \"%\")\n| project Rows, DepartmentCoverage, JobTitleCoverage",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "noDataMessage": "No BehaviorAnalytics data. Is UEBA enabled?",
+                    "title": "Entra ID attribute coverage"
+                  }
+                }
+              ]
+            }
           },
           {
             "type": 1,
             "name": "t4-secA",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">A &middot; High-risk user monitoring</span><br><span style=\"color:#555;font-size:12px;\">Source: Entra ID Protection (<code>AADRiskyUsers</code>). Requires the Microsoft Entra ID Protection connector.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">A \u00b7 High-risk user monitoring</span><br><span style=\"color:#a8c6e8;font-size:12px;\">Source: Entra ID Protection (`AADRiskyUsers`). Requires the Microsoft Entra ID Protection connector.</span></div>"
             }
           },
           {
-            "type": 1,
-            "name": "t4-dist-sub",
+            "type": 12,
+            "name": "g-t4-risk-dist",
+            "customWidth": "50",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Risk level distribution</span> <span style=\"color:#666;font-size:12px;\">&mdash; Current risk state per user, de-duplicated to the newest record</span></div>"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-risk-dist-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Current risk level across all users, de-duplicated to the newest record per person.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-risk-dist",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// AADRiskyUsers logs an update per change, so de-duplicate to the\n// newest row per user -- same idea as SecurityIncident.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by UserPrincipalName\n| where IsDeleted == false\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = count() by RiskLevel\n| order by Users desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No Entra ID Protection risk data in range.",
+                    "title": "Risk level distribution"
+                  }
+                }
+              ]
             }
           },
           {
-            "type": 3,
-            "name": "t4-risk-dist",
+            "type": 12,
+            "name": "g-t4-risk-dist-grid",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "// AADRiskyUsers logs an update per change, so de-duplicate to the\n// newest row per user -- same idea as SecurityIncident.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by UserPrincipalName\n| where IsDeleted == false\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = count() by RiskLevel\n| order by Users desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No Entra ID Protection risk data in range."
-            },
-            "customWidth": "50"
-          },
-          {
-            "type": 3,
-            "name": "t4-risk-dist-grid",
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "// AADRiskyUsers logs an update per change, so de-duplicate to the\n// newest row per user -- same idea as SecurityIncident.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by UserPrincipalName\n| where IsDeleted == false\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = count() by RiskLevel\n| order by Users desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "table",
-              "noDataMessage": "No Entra ID Protection risk data in range.",
-              "gridSettings": {
-                "formatters": [
-                  {
-                    "columnMatch": "RiskLevel",
-                    "formatter": 18,
-                    "formatOptions": {
-                      "thresholdsOptions": "colors",
-                      "thresholdsGrid": [
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-risk-dist-grid-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">The same figures as numbers, for when you need the exact count.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-risk-dist-grid",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "// AADRiskyUsers logs an update per change, so de-duplicate to the\n// newest row per user -- same idea as SecurityIncident.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by UserPrincipalName\n| where IsDeleted == false\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = count() by RiskLevel\n| order by Users desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "noDataMessage": "No Entra ID Protection risk data in range.",
+                    "gridSettings": {
+                      "formatters": [
                         {
-                          "operator": "==",
-                          "thresholdValue": "high",
-                          "representation": "red",
-                          "text": "{0}{1}"
+                          "columnMatch": "RiskLevel",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "colors",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "high",
+                                "representation": "red",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "medium",
+                                "representation": "orange",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "representation": "gray",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
                         },
                         {
-                          "operator": "==",
-                          "thresholdValue": "medium",
-                          "representation": "orange",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "Default",
-                          "representation": "gray",
-                          "text": "{0}{1}"
+                          "columnMatch": "Users",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "palette": "red"
+                          }
                         }
                       ]
-                    }
-                  },
-                  {
-                    "columnMatch": "Users",
-                    "formatter": 8,
-                    "formatOptions": {
-                      "palette": "red"
-                    }
+                    },
+                    "title": "Risk level distribution (detail)"
                   }
-                ]
-              }
-            },
-            "customWidth": "50"
+                }
+              ]
+            }
           },
           {
             "type": 1,
-            "name": "t4-conf-sub",
+            "name": "t4-confirmed-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Confirmed compromised users</span> <span style=\"color:#666;font-size:12px;\">&mdash; <code>RiskState == \"confirmedCompromised\"</code> &mdash; confirmed by an admin or by Microsoft, not merely suspected</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">`RiskState == \"confirmedCompromised\"` \u2014 confirmed by an admin or by Microsoft, not merely suspected.</span></div>"
             }
           },
           {
@@ -1263,14 +2128,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "Confirmed compromised users"
             }
           },
           {
             "type": 1,
-            "name": "t4-high-sub",
+            "name": "t4-high-risk-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">High-risk users still at risk</span> <span style=\"color:#666;font-size:12px;\">&mdash; Risk level <b>high</b> and not yet remediated or dismissed</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Risk level **high**, not yet remediated or dismissed.</span></div>"
             }
           },
           {
@@ -1318,60 +2184,22 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "High-risk users still at risk"
             }
           },
           {
             "type": 1,
             "name": "t4-trend-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Risk trend</span> <span style=\"color:#666;font-size:12px;\">&mdash; Distinct risky users per day, by risk level</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Risk trend</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; &nbsp;</span></div>"
             }
           },
           {
             "type": 1,
-            "name": "t4-trend-scope",
+            "name": "t4-risk-trend-desc",
             "content": {
-              "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;font-size:12px;\">&#9660; These buttons set the window for the <b>risk trend chart only</b>.</div>"
-            }
-          },
-          {
-            "type": 9,
-            "name": "t4-trend-controls",
-            "content": {
-              "version": "KqlParameterItem/1.0",
-              "style": "pills",
-              "queryType": 0,
-              "parameters": [
-                {
-                  "id": "d4cc7d96-b22c-5026-a4fa-a91febf32ef5",
-                  "version": "KqlParameterItem/1.0",
-                  "name": "RiskTrendRange",
-                  "label": "Trend window",
-                  "type": 4,
-                  "isRequired": true,
-                  "typeSettings": {
-                    "selectableValues": [
-                      {
-                        "durationMs": 604800000
-                      },
-                      {
-                        "durationMs": 1209600000
-                      },
-                      {
-                        "durationMs": 2592000000
-                      },
-                      {
-                        "durationMs": 7776000000
-                      }
-                    ],
-                    "allowCustom": true
-                  },
-                  "value": {
-                    "durationMs": 2592000000
-                  }
-                }
-              ]
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Distinct risky users per day, following the <b>Time range</b> filter at the top of the page.</span></div>"
             }
           },
           {
@@ -1379,61 +2207,98 @@
             "name": "t4-risk-trend",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Uses {RiskTrendRange} -- the buttons above this chart, not the page filter.\nAADRiskyUsers\n| where TimeGenerated {RiskTrendRange}\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = dcount(UserPrincipalName) by bin(TimeGenerated, 1d), RiskLevel\n| order by TimeGenerated asc",
+              "query": "// Uses {TimeRange} -- the buttons above this chart, not the page filter.\nAADRiskyUsers\n| where TimeGenerated {TimeRange}\n| where RiskLevel in (\"low\", \"medium\", \"high\")\n| summarize Users = dcount(UserPrincipalName) by bin(TimeGenerated, 1d), RiskLevel\n| order by TimeGenerated asc",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
               "visualization": "timechart",
-              "noDataMessage": "No Entra ID Protection risk data in the selected window."
+              "noDataMessage": "No Entra ID Protection risk data in the selected window.",
+              "title": "Risky users per day, by risk level"
             }
           },
           {
             "type": 1,
             "name": "t4-secB",
             "content": {
-              "json": "<div style=\"padding:12px 16px;border-left:4px solid #4a7ebb;background:#f3f6fb;margin-top:4px;\"><span style=\"font-size:15px;font-weight:600;\">B &middot; UEBA analytics</span><br><span style=\"color:#555;font-size:12px;\">Source: Sentinel UEBA (<code>BehaviorAnalytics</code>) and your incident data. Behavioural, not reputational.</span></div>"
+              "json": "<div style=\"background:#0e2a47;padding:12px 16px;border-radius:4px;\"><span style=\"color:#ffffff;font-size:16px;font-weight:600;\">B \u00b7 UEBA analytics</span><br><span style=\"color:#a8c6e8;font-size:12px;\">Source: Sentinel UEBA (`BehaviorAnalytics`) and your incident data. Behavioural, not reputational.</span></div>"
             }
           },
           {
             "type": 1,
             "name": "t4-prio-sub",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Highest investigation priority</span> <span style=\"color:#666;font-size:12px;\">&mdash; Microsoft's own per-event priority score, summed over the period. High means <i>unusual</i>, not necessarily malicious</span></div>"
+              "json": "<div style=\"background:#0b1f36;padding:10px 16px;border-left:5px solid #4a90d9;border-radius:2px;\"><span style=\"color:#ffffff;font-size:14px;font-weight:600;\">Behavioural risk</span> <span style=\"color:#a8c6e8;font-size:12px;\">&mdash; Investigation priority is Microsoft's own per-event score. High means *unusual*, not necessarily malicious.</span></div>"
             }
           },
           {
-            "type": 3,
-            "name": "t4-top-users",
+            "type": 12,
+            "name": "g-t4-top-users",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "BehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| where isnotempty(UserPrincipalName)\n| where \"{User}\" == \"All\" or UserPrincipalName has \"{User}\"\n| extend Subject = iff(\"{IdentityDisplay}\" == \"Actual\", UserPrincipalName, strcat(\"user-\", substring(hash_sha256(UserPrincipalName), 0, 8)))\n| summarize Priority = sum(InvestigationPriority) by Subject\n| top 10 by Priority desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No UEBA activity for these filters."
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-top-users-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Summed investigation priority per identity. High means *unusual*, not necessarily malicious.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-top-users",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "BehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| where isnotempty(UserPrincipalName)\n| where \"{User}\" == \"All\" or UserPrincipalName has \"{User}\"\n| extend Subject = iff(\"{IdentityDisplay}\" == \"Actual\", UserPrincipalName, strcat(\"user-\", substring(hash_sha256(UserPrincipalName), 0, 8)))\n| summarize Priority = sum(InvestigationPriority) by Subject\n| top 10 by Priority desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No UEBA activity for these filters.",
+                    "title": "Highest investigation priority users"
+                  }
+                }
+              ]
+            }
           },
           {
-            "type": 3,
-            "name": "t4-by-dept",
+            "type": 12,
+            "name": "g-t4-by-dept",
+            "customWidth": "50",
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "BehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| extend Department = tostring(UsersInsights.Department)\n| extend Department = iff(isempty(Department), \"Unmapped\", Department)\n| summarize Priority = sum(InvestigationPriority) by Department\n| top 10 by Priority desc",
-              "size": 0,
-              "queryType": 0,
-              "resourceType": "microsoft.operationalinsights/workspaces",
-              "visualization": "categoricalbar",
-              "noDataMessage": "No UEBA activity for these filters."
-            },
-            "customWidth": "50"
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "name": "t4-by-dept-desc",
+                  "content": {
+                    "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Where behavioural risk concentrates. Reads *Unmapped* if Entra ID attributes are not maintained.</span></div>"
+                  }
+                },
+                {
+                  "type": 3,
+                  "name": "t4-by-dept",
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "BehaviorAnalytics\n| where TimeGenerated {TimeRange}\n| extend Department = tostring(UsersInsights.Department)\n| extend Department = iff(isempty(Department), \"Unmapped\", Department)\n| summarize Priority = sum(InvestigationPriority) by Department\n| top 10 by Priority desc",
+                    "size": 0,
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "categoricalbar",
+                    "noDataMessage": "No UEBA activity for these filters.",
+                    "title": "Investigation priority by department"
+                  }
+                }
+              ]
+            }
           },
           {
             "type": 1,
-            "name": "t4-geo-sub",
+            "name": "t4-geo-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Geographic anomalies</span> <span style=\"color:#666;font-size:12px;\">&mdash; Identities active from more than one distinct source location in the period</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Identities active from more than one distinct source location in the period.</span></div>"
             }
           },
           {
@@ -1465,14 +2330,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "Geographic anomalies"
             }
           },
           {
             "type": 1,
-            "name": "t4-multi-sub",
+            "name": "t4-multi-incident-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Users with multiple incident associations</span> <span style=\"color:#666;font-size:12px;\">&mdash; Appearing in more than one incident is a stronger signal than any single alert</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">Appearing in more than one incident is a stronger signal than any single alert.</span></div>"
             }
           },
           {
@@ -1480,7 +2346,7 @@
             "name": "t4-multi-incident",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Recipe P6, with the exact AlertIds join rather than name matching.\nlet IncidentUsers =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | mv-expand AlertId = AlertIds to typeof(string)\n    | join kind=inner (\n        SecurityAlert\n        | where TimeGenerated {TimeRange}\n        | where isnotempty(CompromisedEntity)\n        | project SystemAlertId, CompromisedEntity, AlertName\n      ) on $left.AlertId == $right.SystemAlertId;\nIncidentUsers\n| where \"{User}\" == \"All\" or CompromisedEntity has \"{User}\"\n| summarize Incidents = dcount(IncidentNumber),\n            Rules = dcount(AlertName),\n            LastSeen = max(CreatedTime) by User = CompromisedEntity\n| where Incidents > 1\n| order by Incidents desc\n| take 25",
+              "query": "// Recipe P6, with the exact AlertIds join rather than name matching.\nlet IncidentUsers =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n    | mv-expand AlertId = AlertIds to typeof(string)\n    | join kind=inner (\n        SecurityAlert\n        | where TimeGenerated {TimeRange}\n        | where isnotempty(CompromisedEntity)\n        | project SystemAlertId, CompromisedEntity, AlertName\n      ) on $left.AlertId == $right.SystemAlertId;\nIncidentUsers\n| where \"{User}\" == \"All\" or CompromisedEntity has \"{User}\"\n| summarize Incidents = dcount(IncidentNumber),\n            Rules = dcount(AlertName),\n            LastSeen = max(CreatedTime) by User = CompromisedEntity\n| where Incidents > 1\n| order by Incidents desc\n| take 25",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -1501,14 +2367,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "Users with multiple incident associations"
             }
           },
           {
             "type": 1,
-            "name": "t4-hs-sub",
+            "name": "t4-highsev-users-desc",
             "content": {
-              "json": "<div style=\"padding:8px 14px;border-left:3px solid #9db4d0;background:#fafcfe;\"><span style=\"font-size:13px;font-weight:600;\">Users impacting high-severity incidents</span> <span style=\"color:#666;font-size:12px;\">&mdash; The same join as above with one extra filter</span></div>"
+              "json": "<div style=\"background:#14304d;padding:8px 14px;border-left:3px solid #4a90d9;border-radius:2px;\"><span style=\"color:#dbe9f7;font-size:12px;\">The same join as above, limited to high-severity incidents.</span></div>"
             }
           },
           {
@@ -1516,7 +2383,7 @@
             "name": "t4-highsev-users",
             "content": {
               "version": "KqlItem/1.0",
-              "query": "// Same join as the panel above, with one extra filter -- P2 applied\n// to a P6 query.\nlet IncidentUsers =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n    | mv-expand AlertId = AlertIds to typeof(string)\n    | join kind=inner (\n        SecurityAlert\n        | where TimeGenerated {TimeRange}\n        | where isnotempty(CompromisedEntity)\n        | project SystemAlertId, CompromisedEntity, AlertName\n      ) on $left.AlertId == $right.SystemAlertId;\nIncidentUsers\n| where Severity == \"High\"\n| where \"{User}\" == \"All\" or CompromisedEntity has \"{User}\"\n| summarize HighSevIncidents = dcount(IncidentNumber),\n            Rules = dcount(AlertName),\n            LastSeen = max(CreatedTime) by User = CompromisedEntity\n| order by HighSevIncidents desc\n| take 25",
+              "query": "// Same join as the panel above, with one extra filter -- P2 applied\n// to a P6 query.\nlet IncidentUsers =\n    SecurityIncident\n    | where TimeGenerated {TimeRange}\n    | where Severity in ({Severity})\n    | summarize arg_max(TimeGenerated, *) by IncidentNumber\n// Scope to incidents CREATED in the window. TimeGenerated above selects\n// rows by LAST UPDATE, which would drag in much older incidents.\n| where CreatedTime {TimeRange}\n    | mv-expand AlertId = AlertIds to typeof(string)\n    | join kind=inner (\n        SecurityAlert\n        | where TimeGenerated {TimeRange}\n        | where isnotempty(CompromisedEntity)\n        | project SystemAlertId, CompromisedEntity, AlertName\n      ) on $left.AlertId == $right.SystemAlertId;\nIncidentUsers\n| where Severity == \"High\"\n| where \"{User}\" == \"All\" or CompromisedEntity has \"{User}\"\n| summarize HighSevIncidents = dcount(IncidentNumber),\n            Rules = dcount(AlertName),\n            LastSeen = max(CreatedTime) by User = CompromisedEntity\n| order by HighSevIncidents desc\n| take 25",
               "size": 0,
               "queryType": 0,
               "resourceType": "microsoft.operationalinsights/workspaces",
@@ -1537,14 +2404,15 @@
                   }
                 ],
                 "filter": true
-              }
+              },
+              "title": "Users impacting high-severity incidents"
             }
           },
           {
             "type": 1,
             "name": "t4-note",
             "content": {
-              "json": "<div style=\"padding:10px 14px;border-left:4px solid #c8952a;background:#fdf8ec;font-size:12px;\"><b>Two schema traps live on this tab.</b> <code>BehaviorAnalytics</code> uses <code>UsersInsights</code> and <code>SourceIPAddress</code> (plural, capital P); <code>Anomalies</code> uses <code>UserInsights</code> and <code>SourceIpAddress</code> (singular, lower-case p). Copying a line between them fails <i>silently</i>. Also <code>Tactics</code> is a <b>string</b>, not an array &mdash; use <code>split()</code>, never <code>mv-expand</code>. See D3 &sect; 15.<br><br><b>The two user panels join incidents to users via <code>AlertIds</code></b>, which is the accurate route &mdash; <code>SecurityIncident</code> has no user column of its own.</div>"
+              "json": "<div style=\"background:#3a2e15;padding:10px 14px;border-left:4px solid #d4a13c;border-radius:2px;\"><span style=\"color:#f2e0b5;font-size:12px;\">**Two schema traps live on this tab.** `BehaviorAnalytics` uses `UsersInsights` and `SourceIPAddress` (plural, capital P); `Anomalies` uses `UserInsights` and `SourceIpAddress` (singular, lower-case p). Copying a line between them fails *silently*. Also `Tactics` is a **string**, not an array \u2014 use `split()`, never `mv-expand`. See D3 \u00a7 15. > The two user panels join incidents to users via `AlertIds`, which is the accurate route \u2014 `SecurityIncident` has no user column of its own.</span></div>"
             }
           }
         ]
